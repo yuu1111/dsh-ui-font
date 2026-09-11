@@ -22,9 +22,11 @@ dsh plugin --profile web add github:yuu1111/dsh-ui-font
 dsh web
 ```
 
-`dsh plugin` forwards to pnpm inside the profile directory and appends dependency packages that declare `dsh.bundle` to `dsh.profile.bundles` automatically, so no manual patch editing is required. Refresh the browser afterwards.
+`dsh plugin` forwards to pnpm inside the profile directory and appends dependency packages that declare `dsh.bundle` to `dsh.profile.bundles` automatically, so no manual patch editing is required.
 
-From a local checkout instead (the package is symlinked into the profile, so later edits apply on browser reload):
+A running `dsh web` composes `dsh.profile.bundles` once at startup and only watches the user patch layer (`cordis.patch.yml`), so **restart it after installing** — a browser refresh alone will not load the plugin.
+
+From a local checkout instead (the package is symlinked into the profile, so later edits need only a `dsh web` restart instead of a reinstall):
 
 ```powershell
 git clone https://github.com/yuu1111/dsh-ui-font
@@ -48,7 +50,7 @@ JetBrains Mono carries no CJK glyphs, so the shipped `FONT_SANS` falls back to B
 const FONT_SANS = "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Yu Gothic UI\", Meiryo, sans-serif";
 ```
 
-Reload the browser after editing — the host row does not need a restart. Keep at least one CJK-capable family after the Latin font, or Japanese text falls back to whatever the browser picks.
+Restart `dsh web` and reload the browser after editing. Keep at least one CJK-capable family after the Latin font, or Japanese text falls back to whatever the browser picks.
 
 ## How it works
 

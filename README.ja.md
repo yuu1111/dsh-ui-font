@@ -22,9 +22,11 @@ dsh plugin --profile web add github:yuu1111/dsh-ui-font
 dsh web
 ```
 
-`dsh plugin` はプロファイルディレクトリで pnpm へ転送し、`dsh.bundle` を宣言する依存を `dsh.profile.bundles` へ自動で追加する 手作業での patch 編集は不要 導入後にブラウザを再読み込みする
+`dsh plugin` はプロファイルディレクトリで pnpm へ転送し、`dsh.bundle` を宣言する依存を `dsh.profile.bundles` へ自動で追加する 手作業での patch 編集は不要
 
-ローカルのチェックアウトを使う場合（プロファイルからシンボリックリンクで参照するため、編集後の再読み込みだけで反映される）
+起動中の `dsh web` は `dsh.profile.bundles` を起動時に一度だけ組む 監視対象はユーザーの patch 層（`cordis.patch.yml`）だけなので、**導入後は `dsh web` を再起動する** ブラウザの再読み込みだけでは反映されない
+
+ローカルのチェックアウトを使う場合（プロファイルからシンボリックリンクで参照するため、編集後は再インストール不要で `dsh web` の再起動だけで反映される）
 
 ```powershell
 git clone https://github.com/yuu1111/dsh-ui-font
@@ -48,7 +50,7 @@ JetBrains Mono は日本語グリフを持たないため、既定の `FONT_SANS
 const FONT_SANS = "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Yu Gothic UI\", Meiryo, sans-serif";
 ```
 
-編集後はブラウザを再読み込みする ホスト行の再起動は不要 ラテン書体の後ろに日本語対応フォントを1つ以上残さないと、日本語が意図しない書体へ落ちる
+編集後は `dsh web` を再起動してブラウザを再読み込みする ラテン書体の後ろに日本語対応フォントを1つ以上残さないと、日本語が意図しない書体へ落ちる
 
 ## 仕組み
 

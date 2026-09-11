@@ -1,0 +1,51 @@
+{
+  "name": "dsh-ui-font",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness Web GUI plugin: override the UI font family (--dsw-font-family, --dsw-font-mono, --ds-font-family-code)",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "README.ja.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "cordis",
+    "plugin",
+    "font",
+    "font-family",
+    "typeface",
+    "web-ui"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "yuu1111"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yuu1111/dsh-ui-font.git"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-theme"
+      ]
+    }
+  }
+}

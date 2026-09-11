@@ -1,0 +1,8 @@
+# dsh-ui-font layer.
+#
+# Adds one client-plugin row. The host half is a no-op; the browser half
+# overrides the font-family tokens on the theme service, so nothing else in
+# the UI has to know about the chosen typeface.
+- insert:
+    - id: ui-font
+      name: dsh-ui-font

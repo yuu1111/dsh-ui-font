@@ -9,13 +9,19 @@
 import { readFile, rm, writeFile } from "node:fs/promises";
 import manifest from "./package.json";
 
-/** 配信側がモジュール名として使う値 */
+/**
+ * 配信側がモジュール名として使う値
+ */
 const MODULE_ID = manifest.name;
 
-/** 出力先 DSH のプラグイン慣例に合わせる */
+/**
+ * 出力先 DSH のプラグイン慣例に合わせる
+ */
 const OUT_DIR = "lib";
 
-/** 配信されるバンドルは読み込み時に自分自身をローダーへ登録する */
+/**
+ * 配信されるバンドルは読み込み時に自分自身をローダーへ登録する
+ */
 const LOADER_HEAD = `window.__ModuleLoader__.load({
 \tid: ${JSON.stringify(MODULE_ID)},
 \tfactory: (require) => {
@@ -23,7 +29,9 @@ const LOADER_HEAD = `window.__ModuleLoader__.load({
 \t\tvar exports = module.exports;
 `;
 
-/** ローダーの factory から プラグイン面を返して閉じる */
+/**
+ * ローダーの factory から プラグイン面を返して閉じる
+ */
 const LOADER_TAIL = `
 \t\treturn module.exports;
 \t}

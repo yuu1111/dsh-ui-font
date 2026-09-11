@@ -2,19 +2,25 @@ import { describe, expect, test } from "bun:test";
 import manifest from "../package.json";
 import type { PluginContext, TokenOverrides } from "../src/client";
 
-/** バンドルが公開するプラグイン面 */
+/**
+ * バンドルが公開するプラグイン面
+ */
 interface PluginFace {
 	apply(ctx: PluginContext): void;
 	readonly inject: readonly string[];
 }
 
-/** バンドルが `window.__ModuleLoader__.load` へ渡す登録内容 */
+/**
+ * バンドルが `window.__ModuleLoader__.load` へ渡す登録内容
+ */
 interface Registration {
 	readonly id: string;
 	readonly factory: (require: (specifier: string) => unknown) => PluginFace;
 }
 
-/** 最小の style 要素スタブ */
+/**
+ * 最小の style 要素スタブ
+ */
 interface FakeTag {
 	readonly dataset: Record<string, string>;
 	textContent: string;
@@ -41,7 +47,9 @@ const clientBundleUrl = new URL("../lib/client.js", import.meta.url).href;
 
 await import(clientBundleUrl);
 
-/** ビルド済みバンドルが公開するプラグイン面を取り出す */
+/**
+ * ビルド済みバンドルが公開するプラグイン面を取り出す
+ */
 function loadPluginFace(): PluginFace {
 	const [registration] = registrations;
 	if (registration === undefined)
@@ -49,7 +57,9 @@ function loadPluginFace(): PluginFace {
 	return registration.factory(() => undefined);
 }
 
-/** 最小の style 要素を作る */
+/**
+ * 最小の style 要素を作る
+ */
 function createFakeTag(): FakeTag {
 	const tag: FakeTag = {
 		dataset: {},

@@ -20,7 +20,7 @@ Before committing, run lint, type-checking, and `bun run test`. CI repeats lint,
 
 ## Coding Style & Naming Conventions
 
-Write strict TypeScript ESM and follow the shared Biome and TypeScript configurations referenced by `biome.json` and `tsconfig.json`. Biome enforces tab indentation, double quotes, and expanded JSON; write JSDoc in Japanese and keep it to what the code cannot say. Use `camelCase` for functions and variables, `PascalCase` for types, and named exports only — the client bundle must export exactly the `apply` and `inject` plugin face.
+Write strict TypeScript ESM and follow the shared Biome and TypeScript configurations referenced by `biome.json` and `tsconfig.json`. Biome enforces tab indentation, double quotes, and expanded JSON. Write JSDoc in Japanese, keep it to what the code cannot say, and always use the multi-line block form — `/**` on its own line, the text, then `*/` on its own line — instead of a one-line `/** ... */`. Use `camelCase` for functions and variables, `PascalCase` for types, and named exports only — the client bundle must export exactly the `apply` and `inject` plugin face.
 
 ## Testing Guidelines
 

@@ -1,6 +1,7 @@
 {
 	"extends": "@yuu1111/tsconfig/bun.json",
 	"compilerOptions": {
+		"jsx": "react-jsx",
 		"lib": [
 			"ESNext",
 			"DOM"

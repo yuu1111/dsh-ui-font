@@ -1,8 +1,10 @@
 /**
  * @description lib/ をビルドする
  *
- * ホスト側は ESM のまま出し ブラウザ側は CJS へ束ねてから client-modules が
- * 配信するローダー形式（`window.__ModuleLoader__.load({ id, factory })`）へ包む
+ * ホスト側は schemastery を取り込んだ ESM として出し ブラウザ側は CJS へ束ねてから
+ * client-modules が配信するローダー形式（`window.__ModuleLoader__.load({ id, factory })`）
+ * へ包む ブラウザ側が実行時に要求してよいのは shell が配るモジュールだけで それ以外を
+ * 取り込むとバンドルが二重に読み込まれるため 許可した specifier 以外を検出したら失敗する
  * バンドルの id はモジュール名として使われるため package.json の name と一致させる
  */
 
@@ -18,6 +20,18 @@ const MODULE_ID = manifest.name;
  * 出力先 DSH のプラグイン慣例に合わせる
  */
 const OUT_DIR = "lib";
+
+/**
+ * ブラウザ側が実行時に要求してよい specifier
+ *
+ * いずれも shell が最初から持つモジュールで `dsh.client.external` の宣言は要らない
+ */
+const CLIENT_EXTERNALS = [
+	"react",
+	"react/jsx-runtime",
+	"@deepseek-ai/dsh-client-store",
+	"@deepseek-ai/dsh-client-ui-primitives",
+];
 
 /**
  * 配信されるバンドルは読み込み時に自分自身をローダーへ登録する
@@ -39,6 +53,11 @@ const LOADER_TAIL = `
 `;
 
 /**
+ * プラグイン面として外へ出す名前
+ */
+const EXPORTS = ["apply", "inject"];
+
+/**
  * @description 失敗したビルドのログを出して中断する
  * @param label - どちらのビルドか
  * @param result - Bun.build の結果
@@ -50,6 +69,35 @@ function assertBuilt(
 	if (result.success) return;
 	for (const log of result.logs) console.error(log);
 	throw new Error(`${label} のビルドに失敗した`);
+}
+
+/**
+ * @description 束ねたバンドルが満たすべき条件を確かめる
+ *
+ * 実行時に解決するモジュールを許可リストへ限定し プラグイン面の公開を確認する
+ * @param body - 包む前の CJS バンドル
+ */
+function assertClientBundle(body: string): void {
+	const required = new Set(
+		[...body.matchAll(/\brequire\(\s*["']([^"']+)["']\s*\)/g)].map(
+			(match) => match[1] ?? "",
+		),
+	);
+	for (const specifier of required) {
+		if (!CLIENT_EXTERNALS.includes(specifier)) {
+			throw new Error(
+				`client バンドルが許可していないモジュールを要求している: ${specifier}`,
+			);
+		}
+	}
+	if (!/\bmodule\.exports\s*=/.test(body)) {
+		throw new Error("client バンドルが読み出し面を公開していない");
+	}
+	for (const name of EXPORTS) {
+		if (!new RegExp(`\\b${name}\\s*:`).test(body)) {
+			throw new Error(`client バンドルが ${name} を公開していない`);
+		}
+	}
 }
 
 await rm(OUT_DIR, { force: true, recursive: true });
@@ -67,15 +115,19 @@ assertBuilt(
 assertBuilt(
 	"client",
 	await Bun.build({
-		entrypoints: ["src/client.ts"],
+		entrypoints: ["src/client.tsx"],
 		outdir: OUT_DIR,
 		target: "browser",
 		format: "cjs",
+		external: CLIENT_EXTERNALS,
+		// 開発用の jsx ランタイムは shell が持たないため本番用の import に固定する
+		jsx: { development: false },
 	}),
 );
 
 const clientPath = `${OUT_DIR}/client.js`;
 const bundle = await readFile(clientPath, "utf8");
+assertClientBundle(bundle);
 await writeFile(clientPath, LOADER_HEAD + bundle + LOADER_TAIL);
 
 console.log(`built ${OUT_DIR}/index.js and ${clientPath} for ${MODULE_ID}`);

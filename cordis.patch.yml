@@ -1,8 +1,18 @@
 # dsh-ui-font layer.
 #
-# Adds one client-plugin row. The host half is a no-op; the browser half
-# overrides the font-family tokens on the theme service, so nothing else in
-# the UI has to know about the chosen typeface.
+# Adds one plugin row. The host half registers the `ui-font` settings section
+# and injects the saved stacks into the served index; the browser half applies
+# them and adds the two rows to Settings -> General.
+#
+# A profile can set the base layer here. Saved values still win over it, and a
+# field left out falls back to the schema default:
+#
+# - insert:
+#     - id: ui-font
+#       name: dsh-ui-font
+#       config:
+#         sans: '"JetBrains Mono", "BIZ UDPGothic", "Noto Sans JP", sans-serif'
+#         mono: '"JetBrains Mono", Consolas, monospace'
 - insert:
     - id: ui-font
       name: dsh-ui-font

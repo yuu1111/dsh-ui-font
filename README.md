@@ -1,19 +1,19 @@
 # dsh-ui-font
 
-A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web GUI plugin that changes the UI typeface. The source is strict TypeScript, checked with Biome and the shared [`@yuu1111/biome-config`](https://www.npmjs.com/package/@yuu1111/biome-config) and [`@yuu1111/tsconfig`](https://www.npmjs.com/package/@yuu1111/tsconfig) presets, and bundled with Bun.
+A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web GUI plugin that sets the UI and code font families from **Settings → General**.
 
 [日本語](README.ja.md)
 
 ## Why this exists
 
-The DSH Web GUI exposes the color scheme and the conversation font size in **Settings → General**, but not the font family. `dsh-client-ui-theme` ships `base.css` with two hardcoded stacks:
+The DSH Web GUI exposes the colour scheme and the conversation font size in **Settings → General**, but not the font family. `dsh-client-ui-theme` ships `base.css` with two hardcoded stacks:
 
 | Token | Used by | Stock value |
 | --- | --- | --- |
 | `--dsw-font-family` | body text and UI chrome | `-apple-system, BlinkMacSystemFont, "Segoe UI", ...` |
-| `--ds-font-family-code` | code blocks and monospace UI | `"SF Mono", "JetBrains Mono", "Fira Code", Consolas, ...` |
+| `--dsw-font-mono`, `--ds-font-family-code` | code blocks and monospace UI | `"SF Mono", "JetBrains Mono", "Fira Code", Consolas, ...` |
 
-This plugin stacks a token layer over the active theme through `ctx.theme.overrideTokens()`, so the typeface survives `light` / `dark` / `system` switches and no file inside the DSH installation is modified (an npm update cannot revert it).
+This plugin adds two rows to that settings page, stores the chosen stacks in `$DSH_HOME/settings.yaml`, and applies them without touching any file inside the DSH installation (an npm update cannot revert them).
 
 ## Install
 
@@ -30,39 +30,51 @@ Uninstall with `dsh plugin --profile web remove dsh-ui-font`.
 
 ## Configure
 
-Edit the two constants at the top of `src/client.ts`, regenerate the bundle, then restart:
+Open **Settings → General** and edit either row. Both fields take a CSS `font-family` list, the same syntax as the browser property:
 
-| Constant | Shipped default | Applies to |
+| Row | Setting | Applies to |
 | --- | --- | --- |
-| `FONT_SANS` | `"JetBrains Mono", "BIZ UDPGothic", "Noto Sans JP", ...` | body text and UI |
-| `FONT_MONO` | `"JetBrains Mono", "SF Mono", "Fira Code", Consolas, ...` | code and monospace |
+| Body font | `sans` | body text and UI chrome |
+| Code font | `mono` | code blocks and monospaced text |
 
-```powershell
-bun run build   # rewrites lib/index.js and lib/client.js
+Values are committed on blur or Enter, and Escape or an invalid value restores the stored one. Braces, semicolons, and angle brackets are rejected, because the value is interpolated into a stylesheet. Only the fields you change are written; the rest keep the shipped defaults:
+
+```yaml
+# $DSH_HOME/settings.yaml
+ui-font:
+  sans: '"JetBrains Mono", "BIZ UDPGothic", "Noto Sans JP", sans-serif'
 ```
 
-JetBrains Mono carries no CJK glyphs, so the shipped `FONT_SANS` falls back to BIZ UDPGothic and Noto Sans JP for Japanese text. Keep at least one CJK-capable family after the Latin font, or Japanese falls back to whatever the browser picks. To keep the stock UI font and change code only:
+The running server watches that file, so a hand edit applies on the next page reload. The shipped defaults have no `ui-font` section at all:
 
-```ts
-const FONT_SANS = "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Yu Gothic UI\", Meiryo, sans-serif";
-```
+| Setting | Shipped default |
+| --- | --- |
+| `sans` | `"JetBrains Mono", "BIZ UDPGothic", "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif` |
+| `mono` | `"JetBrains Mono", "SF Mono", "Fira Code", Consolas, "Liberation Mono", monospace` |
+
+JetBrains Mono carries no CJK glyphs, so the shipped `sans` falls back to BIZ UDPGothic and Noto Sans JP for Japanese text. Keep at least one CJK-capable family after the Latin font, or Japanese falls back to whatever the browser picks.
+
+A profile can also set the plugin's Loader `config:`, which becomes the base layer under the saved values — see the commented example in `cordis.patch.yml`.
 
 ## Repository layout
 
 | Path | Role |
 | --- | --- |
-| `src/index.ts` | Inert host half — a package's `dsh.client` bundle is served only for enabled Loader entries, so the row has to exist |
-| `src/client.ts` | Browser half: the font constants and the token layer |
+| `src/index.ts` | Host half: registers the `ui-font` settings section and injects the saved stacks into the served index |
+| `src/client.tsx` | Browser half: applies the stylesheet and registers the two settings rows |
+| `src/shared.ts` | Values shared by both halves: namespace, defaults, sanitising, and the stylesheet builder |
 | `build.ts` | Bun build: host half as ESM, browser half as CJS wrapped in the module-loader format |
 | `cordis.patch.yml` | Inserts the `ui-font` row into the profile tree |
 | `lib/` | Generated by `bun run build` and by `prepack`; not tracked, so it exists only locally and inside the published tarball |
-| `tests/client.test.ts` | Contract tests that run against the built `lib/client.js` |
+| `tests/host.test.ts`, `tests/client.test.ts` | Contract tests that run against the built `lib/` |
 
 ## How it works
 
-- `build.ts` bundles `src/client.ts` to CJS and wraps it in `window.__ModuleLoader__.load({ id, factory })`. The bundle id is read from `package.json`, because client-modules keys the browser module by package name.
-- `src/client.ts` declares `inject: ["theme"]`, then calls `overrideTokens("dsh-ui-font", {...})`. The ui-layout presenter writes the resolved tokens onto `document.body` as inline custom properties, and a value set on `body` overrides the `:root` declaration for every descendant.
-- On a DSH version whose theme service has no `overrideTokens()`, the plugin falls back to appending a `:root, body` stylesheet with `!important`.
+- The host half calls `settings.installSection(ctx, "ui-font", Config, config, hooks)` inside `ctx.inject(["settings"], ...)`. The plugin's Loader `config:` becomes the base layer, the saved `settings.yaml` section overrides it, and the schema defaults cover a config that omits a field.
+- The host half also pushes one `{ kind: "style" }` row on `webserver/index-inject`. Rows are collected on every index render and placed directly after `<head>`, so the saved stacks are in effect for the first paint and a hand edit to `settings.yaml` shows up on the next reload without a restart.
+- The browser half declares `inject: ["slots", "locale", "settingsScope"]`, binds the `ui-font` namespace with `settingsScope.bind()`, and keeps one `style[data-plugin-css="dsh-ui-font/font-family.css"]` tag in sync with the snapshot. Only one authority writes the tokens: both halves emit the same `:root,body{... !important}` declarations, and the tag the browser half appends later wins on equal specificity while the host row covers the window before the client loads.
+- The rows register into the `settings.general.item` slot with `id: "dsh-ui-font-sans"` / `"dsh-ui-font-mono"` and `order: 70` / `71`, so they sit after the built-in appearance and font-size rows. The browser half ships `en`, `zh`, and `ja` dictionaries; other locales fall back to English.
+- `!important` is required because the ui-layout presenter writes the resolved tokens onto `document.body` as inline custom properties, which outrank a plain `:root` declaration for every descendant.
 
 `--dsw-font-mono` is not declared by the stock sheets; some components read it through `var(--dsw-font-mono, ui-monospace, monospace)`, so the override claims it too.
 
@@ -77,6 +89,8 @@ bun run test     # builds lib/, then runs the suite against it
 bun run build    # regenerates lib/
 ```
 
+The browser half may only `require()` modules the shell already seeds — `react`, `react/jsx-runtime`, `@deepseek-ai/dsh-client-store`, and `@deepseek-ai/dsh-client-ui-primitives`. `build.ts` fails the build when any other specifier shows up, and pins the production JSX runtime because the shell does not seed `react/jsx-dev-runtime`.
+
 To try an edit in a live profile without publishing, install this checkout by path and rerun `bun run build` after each change:
 
 ```powershell
@@ -85,13 +99,13 @@ dsh plugin --profile web add "link:$((Resolve-Path .\dsh-ui-font).Path)"
 
 ## Release
 
-Bump `version`, commit, then publish a GitHub Release for the matching tag (`v0.1.0` ↔ `0.1.0`). `.github/workflows/release.yml` builds the tarball in a `contents: read` job, verifies the tag against `package.json`, and publishes it from a separate job with npm trusted publishing (`--provenance`), so no long-lived npm token is stored.
+Bump `version`, commit, then publish a GitHub Release for the matching tag (`v0.2.0` ↔ `0.2.0`). `.github/workflows/release.yml` builds the tarball in a `contents: read` job, verifies the tag against `package.json`, and publishes it from a separate job with npm trusted publishing (`--provenance`), so no long-lived npm token is stored.
 
 ## Verified with
 
-- DSH `0.1.5-rc.2` (`@deepseek-ai/dsh-client-ui-theme` `0.1.5-rc.2`), Windows 11 / Chromium
-- `bun test`: module id, exported plugin face, theme token layer, and fallback stylesheet
-- Real browser check: the bundle is served from `/plugins/??dsh-ui-font/client.js`, `--dsw-font-family` lands on the `document.body` inline style, and `var(--dsw-font-family)` resolves to the configured stack
+- DSH `0.1.5-rc.2` (`@deepseek-ai/dsh-client-ui-settings` `0.1.5-rc.2`), Windows 11 / Chromium
+- `bun test`: module id, exported plugin face, settings section registration, index style row, live source switch, scope binding, stylesheet updates, row registration, and the row edit path
+- Real browser check: the served index carries the `<style>` row with the configured stacks, **Settings → General** shows both rows with the stored values, editing a row writes `ui-font:` to `$DSH_HOME/settings.yaml` and updates the computed body font without a reload, and removing the section restores the defaults
 
 ## License
 

@@ -1,0 +1,14 @@
+{
+	"extends": "@yuu1111/tsconfig/bun.json",
+	"compilerOptions": {
+		"lib": [
+			"ESNext",
+			"DOM"
+		]
+	},
+	"include": [
+		"src",
+		"tests",
+		"build.ts"
+	]
+}

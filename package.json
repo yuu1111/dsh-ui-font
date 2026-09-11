@@ -1,51 +1,66 @@
 {
-  "name": "dsh-ui-font",
-  "version": "0.1.0",
-  "description": "DeepSeek Harness Web GUI plugin: override the UI font family (--dsw-font-family, --dsw-font-mono, --ds-font-family-code)",
-  "type": "module",
-  "main": "lib/index.js",
-  "exports": {
-    ".": "./lib/index.js",
-    "./client": "./lib/client.js"
-  },
-  "files": [
-    "lib",
-    "cordis.patch.yml",
-    "README.md",
-    "README.ja.md",
-    "LICENSE"
-  ],
-  "engines": {
-    "node": ">=20"
-  },
-  "keywords": [
-    "dsh",
-    "deepseek-harness",
-    "dsh-plugin",
-    "cordis",
-    "plugin",
-    "font",
-    "font-family",
-    "typeface",
-    "web-ui"
-  ],
-  "license": "MIT",
-  "author": {
-    "name": "yuu1111"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/yuu1111/dsh-ui-font.git"
-  },
-  "dsh": {
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    },
-    "client": {
-      "platform": "web",
-      "inject": [
-        "@deepseek-ai/dsh-client-ui-theme"
-      ]
-    }
-  }
+	"name": "dsh-ui-font",
+	"version": "0.1.0",
+	"description": "DeepSeek Harness Web GUI plugin: override the UI font family (--dsw-font-family, --dsw-font-mono, --ds-font-family-code)",
+	"type": "module",
+	"main": "lib/index.js",
+	"exports": {
+		".": "./lib/index.js",
+		"./client": "./lib/client.js"
+	},
+	"files": [
+		"lib",
+		"cordis.patch.yml",
+		"README.md",
+		"README.ja.md",
+		"LICENSE"
+	],
+	"engines": {
+		"node": ">=20"
+	},
+	"packageManager": "bun@1.4.2",
+	"scripts": {
+		"build": "bun build.ts",
+		"check": "tsc -p tsconfig.json",
+		"lint": "biome check .",
+		"format": "biome check --write --unsafe .",
+		"test": "bun test"
+	},
+	"keywords": [
+		"dsh",
+		"deepseek-harness",
+		"dsh-plugin",
+		"cordis",
+		"plugin",
+		"font",
+		"font-family",
+		"typeface",
+		"web-ui"
+	],
+	"license": "MIT",
+	"author": {
+		"name": "yuu1111"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/yuu1111/dsh-ui-font.git"
+	},
+	"dsh": {
+		"bundle": {
+			"patch": "./cordis.patch.yml"
+		},
+		"client": {
+			"platform": "web",
+			"inject": [
+				"@deepseek-ai/dsh-client-ui-theme"
+			]
+		}
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.13",
+		"@types/bun": "^1.4.2",
+		"@yuu1111/biome-config": "^1.3.5",
+		"@yuu1111/tsconfig": "^1.0.4",
+		"typescript": "^7.0.2"
+	}
 }

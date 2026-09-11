@@ -1,6 +1,6 @@
 # dsh-ui-font
 
-A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web GUI plugin that changes the UI typeface.
+A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web GUI plugin that changes the UI typeface. The source is strict TypeScript, checked with Biome and the shared [`@yuu1111/biome-config`](https://www.npmjs.com/package/@yuu1111/biome-config) and [`@yuu1111/tsconfig`](https://www.npmjs.com/package/@yuu1111/tsconfig) presets, and bundled with Bun.
 
 [日本語](README.ja.md)
 
@@ -22,48 +22,75 @@ dsh plugin --profile web add github:yuu1111/dsh-ui-font
 dsh web
 ```
 
-`dsh plugin` forwards to pnpm inside the profile directory and appends dependency packages that declare `dsh.bundle` to `dsh.profile.bundles` automatically, so no manual patch editing is required.
+`dsh plugin` forwards to pnpm inside the profile directory and appends dependency packages that declare `dsh.bundle` to `dsh.profile.bundles` automatically, so no manual patch editing is required. `lib/` is committed, so installing from git needs no build step.
 
 A running `dsh web` composes `dsh.profile.bundles` once at startup and only watches the user patch layer (`cordis.patch.yml`), so **restart it after installing** — a browser refresh alone will not load the plugin.
 
-From a local checkout instead (the package is symlinked into the profile, so later edits need only a `dsh web` restart instead of a reinstall):
+From a local checkout instead:
 
 ```powershell
 git clone https://github.com/yuu1111/dsh-ui-font
 dsh plugin --profile web add "link:$((Resolve-Path .\dsh-ui-font).Path)"
 ```
 
-Uninstall with `dsh plugin --profile web remove dsh-ui-font`.
+The checkout is symlinked into the profile, so later edits need `bun run build` (it regenerates `lib/`) and a `dsh web` restart instead of a reinstall. Uninstall with `dsh plugin --profile web remove dsh-ui-font`.
 
 ## Configure
 
-Edit the two constants at the top of `lib/client.js`:
+Edit the two constants at the top of `src/client.ts`, regenerate the bundle, then restart:
 
 | Constant | Shipped default | Applies to |
 | --- | --- | --- |
 | `FONT_SANS` | `"JetBrains Mono", "BIZ UDPGothic", "Noto Sans JP", ...` | body text and UI |
 | `FONT_MONO` | `"JetBrains Mono", "SF Mono", "Fira Code", Consolas, ...` | code and monospace |
 
-JetBrains Mono carries no CJK glyphs, so the shipped `FONT_SANS` falls back to BIZ UDPGothic and Noto Sans JP for Japanese text. To keep the stock UI font and change code only:
+```powershell
+bun run build   # rewrites lib/index.js and lib/client.js
+```
 
-```js
+JetBrains Mono carries no CJK glyphs, so the shipped `FONT_SANS` falls back to BIZ UDPGothic and Noto Sans JP for Japanese text. Keep at least one CJK-capable family after the Latin font, or Japanese falls back to whatever the browser picks. To keep the stock UI font and change code only:
+
+```ts
 const FONT_SANS = "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Yu Gothic UI\", Meiryo, sans-serif";
 ```
 
-Restart `dsh web` and reload the browser after editing. Keep at least one CJK-capable family after the Latin font, or Japanese text falls back to whatever the browser picks.
+## Repository layout
+
+| Path | Role |
+| --- | --- |
+| `src/index.ts` | Inert host half — a package's `dsh.client` bundle is served only for enabled Loader entries, so the row has to exist |
+| `src/client.ts` | Browser half: the font constants and the token layer |
+| `build.ts` | Bun build: host half as ESM, browser half as CJS wrapped in the module-loader format |
+| `cordis.patch.yml` | Inserts the `ui-font` row into the profile tree |
+| `lib/` | Generated and committed: `index.js` and `client.js` are what DSH actually loads |
+| `tests/client.test.ts` | Contract tests that run against the built `lib/client.js` |
 
 ## How it works
 
-- `lib/index.js` is an inert host half. A package's `dsh.client` bundle is served only for enabled Loader entries, so the row has to exist even though the host half does nothing.
-- `lib/client.js` is a hand-written client bundle in the `window.__ModuleLoader__.load({ id, factory })` format. It declares `inject: ["theme"]`, then calls `overrideTokens("dsh-ui-font", {...})`. The ui-layout presenter writes the resolved tokens onto `document.body` as inline custom properties, and a value set on `body` overrides the `:root` declaration for every descendant.
+- `build.ts` bundles `src/client.ts` to CJS and wraps it in `window.__ModuleLoader__.load({ id, factory })`. The bundle id is read from `package.json`, because client-modules keys the browser module by package name.
+- `src/client.ts` declares `inject: ["theme"]`, then calls `overrideTokens("dsh-ui-font", {...})`. The ui-layout presenter writes the resolved tokens onto `document.body` as inline custom properties, and a value set on `body` overrides the `:root` declaration for every descendant.
 - On a DSH version whose theme service has no `overrideTokens()`, the plugin falls back to appending a `:root, body` stylesheet with `!important`.
 
 `--dsw-font-mono` is not declared by the stock sheets; some components read it through `var(--dsw-font-mono, ui-monospace, monospace)`, so the override claims it too.
 
+## Development
+
+```powershell
+bun install
+bun run check    # tsc --noEmit through @yuu1111/tsconfig/bun.json
+bun run lint     # biome check .
+bun run format   # biome check --write --unsafe .
+bun test         # loads lib/client.js with a stubbed window.__ModuleLoader__
+bun run build    # regenerates lib/
+```
+
+`lib/` is tracked on purpose so git installs work without a build; CI fails when a fresh `bun run build` differs from the committed output.
+
 ## Verified with
 
 - DSH `0.1.5-rc.2` (`@deepseek-ai/dsh-client-ui-theme` `0.1.5-rc.2`), Windows 11 / Chromium
-- End-to-end check in a real browser: the plugin bundle is served from `/plugins/??dsh-ui-font/client.js`, `--dsw-font-family` lands on the `document.body` inline style, and `var(--dsw-font-family)` resolves to the configured stack
+- `bun test`: module id, exported plugin face, theme token layer, and fallback stylesheet
+- Real browser check: the bundle is served from `/plugins/??dsh-ui-font/client.js`, `--dsw-font-family` lands on the `document.body` inline style, and `var(--dsw-font-family)` resolves to the configured stack
 
 ## License
 

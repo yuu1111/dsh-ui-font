@@ -99,7 +99,7 @@ dsh plugin --profile web add "link:$((Resolve-Path .\dsh-ui-font).Path)"
 
 ## Release
 
-Bump `version`, commit, then publish a GitHub Release for the matching tag (`v0.2.0` ↔ `0.2.0`). `.github/workflows/release.yml` builds the tarball in a `contents: read` job, verifies the tag against `package.json`, and publishes it from a separate job with npm trusted publishing (`--provenance`), so no long-lived npm token is stored.
+Bump `version`, commit, then publish a GitHub Release for the matching tag (`v1.0.0` ↔ `1.0.0`). `.github/workflows/release.yml` builds the tarball in a `contents: read` job, verifies the tag against `package.json`, and publishes it from a separate job with npm trusted publishing (`--provenance`), so no long-lived npm token is stored.
 
 ## Verified with
 

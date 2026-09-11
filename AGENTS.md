@@ -32,7 +32,7 @@ Use `bun:test` with `describe`, `test`, and `expect`, and name files `*.test.ts`
 
 ## Release
 
-Bump `version`, commit, and publish a GitHub Release for the matching tag (`v0.2.0` ↔ `0.2.0`). `.github/workflows/release.yml` builds and verifies the tarball in a `contents: read` job, then publishes that artifact from a separate `id-token: write` job with npm trusted publishing, so no long-lived npm token exists. The one-time bootstrap publish (`0.0.0` under the `bootstrap` dist-tag) and the trusted publisher registration happen once per package, not per version.
+Bump `version`, commit, and publish a GitHub Release for the matching tag (`v1.0.0` ↔ `1.0.0`). `.github/workflows/release.yml` builds and verifies the tarball in a `contents: read` job, then publishes that artifact from a separate `id-token: write` job with npm trusted publishing, so no long-lived npm token exists. The one-time bootstrap publish (`0.0.0` under the `bootstrap` dist-tag) and the trusted publisher registration happen once per package, not per version.
 
 ## Commit & Pull Request Guidelines
 

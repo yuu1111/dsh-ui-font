@@ -99,7 +99,7 @@ dsh plugin --profile web add "link:$((Resolve-Path .\dsh-ui-font).Path)"
 
 ## リリース
 
-`version` を上げて commit し 対応するタグ（`v0.2.0` ↔ `0.2.0`）で GitHub Release を公開する `.github/workflows/release.yml` が `contents: read` の job で tarball を作り タグと `package.json` の version を照合したうえで 別 job から npm trusted publishing（`--provenance`）で公開するため 長期の npm token を保存しない
+`version` を上げて commit し 対応するタグ（`v1.0.0` ↔ `1.0.0`）で GitHub Release を公開する `.github/workflows/release.yml` が `contents: read` の job で tarball を作り タグと `package.json` の version を照合したうえで 別 job から npm trusted publishing（`--provenance`）で公開するため 長期の npm token を保存しない
 
 ## 検証済み環境
 

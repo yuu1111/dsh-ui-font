@@ -147,7 +147,7 @@ const clientBundleUrl = new URL("../lib/client.js", import.meta.url).href;
 await import(clientBundleUrl);
 
 /**
- * 2つのフックだけを持つ最小の React 代替
+ * 2つのフックと ref だけを持つ最小の React 代替
  */
 function createHooks() {
 	const cells: unknown[] = [];
@@ -159,7 +159,13 @@ function createHooks() {
 		useState<T>(initial: T): [T, (next: T | ((prev: T) => T)) => void] {
 			const slot = index;
 			index += 1;
-			if (cells.length <= slot) cells[slot] = initial;
+			if (cells.length <= slot) {
+				// React と同じく関数を渡された場合は遅延初期化として呼ぶ
+				cells[slot] =
+					typeof initial === "function"
+						? (initial as () => T)()
+						: (initial as T);
+			}
 			return [
 				cells[slot] as T,
 				(next) => {
@@ -172,6 +178,12 @@ function createHooks() {
 		},
 		useEffect(effect: () => void) {
 			effect();
+		},
+		useRef<T>(initial: T): { current: T } {
+			const slot = index;
+			index += 1;
+			if (cells.length <= slot) cells[slot] = { current: initial };
+			return cells[slot] as { current: T };
 		},
 	};
 }
@@ -192,22 +204,41 @@ const jsxRuntime = {
 };
 
 /**
+ * 名前で見分けられるアイコンのスタブ
+ */
+function createIcon(name: string) {
+	return { displayName: name, name };
+}
+
+/**
  * バンドルへ渡す最小の require
  */
 function createRequire(hooks: ReturnType<typeof createHooks>) {
 	return (specifier: string): unknown => {
 		switch (specifier) {
 			case "react":
-				return { useEffect: hooks.useEffect, useState: hooks.useState };
+				return {
+					useEffect: hooks.useEffect,
+					useRef: hooks.useRef,
+					useState: hooks.useState,
+				};
 			case "react/jsx-runtime":
 				return jsxRuntime;
 			case "@deepseek-ai/dsh-client-store":
 				return { defineStore: (spec: unknown) => ({ spec }) };
 			case "@deepseek-ai/dsh-client-ui-primitives":
 				return {
+					IconCheckOutline14: createIcon("IconCheckOutline14"),
+					IconChevronLeftOutline14: createIcon("IconChevronLeftOutline14"),
+					IconChevronRightOutline14: createIcon("IconChevronRightOutline14"),
+					IconCloseFill14: createIcon("IconCloseFill14"),
+					IconPlusOutline16: createIcon("IconPlusOutline16"),
+					IconSearchOutline16: createIcon("IconSearchOutline16"),
 					Input(props: Record<string, unknown>) {
 						return { props, type: "Input" };
 					},
+					useAnchoredPosition: () => ({ left: 0, top: 0 }),
+					useDismissOnOutsidePointer: () => {},
 				};
 			default:
 				throw new Error(`スタブしていないモジュール: ${specifier}`);
@@ -505,77 +536,243 @@ function requireHandler<Handler>(node: Node, name: string): Handler {
 	return value as Handler;
 }
 
-describe("設定行", () => {
-	test("保存済みの値を表示し 変更を確定すると保存する", () => {
-		const { hooks, rows } = createClient({ sans: "A", mono: "B" });
-		const component = rows[0]?.component;
-		if (component === undefined) {
-			throw new Error("行が登録されていない");
+/**
+ * 木から 指定したクラスを持つ要素をすべて集める
+ */
+function findAllByClass(
+	node: unknown,
+	className: string,
+	found: Node[] = [],
+): Node[] {
+	if (typeof node !== "object" || node === null) return found;
+	if (Array.isArray(node)) {
+		for (const child of node) findAllByClass(child, className, found);
+		return found;
+	}
+	const element = node as Node;
+	const value = element.props?.className;
+	if (typeof value === "string" && value.split(" ").includes(className)) {
+		found.push(element);
+	}
+	findAllByClass(element.props?.children, className, found);
+	return found;
+}
+
+/**
+ * 木から aria-label が一致する要素を探す
+ */
+function findByLabel(node: unknown, label: string): Node | undefined {
+	if (typeof node !== "object" || node === null) return undefined;
+	if (Array.isArray(node)) {
+		for (const child of node) {
+			const found = findByLabel(child, label);
+			if (found !== undefined) return found;
 		}
-		const saved: string[] = [];
-		const state = { revision: 1, value: "Old Sans" };
-		const props = {
-			save: (value: string) => {
-				saved.push(value);
-			},
-			t: (key: string) => key,
-			useStore: (select: (next: typeof state) => unknown) => select(state),
-		};
-		const render = () => {
-			hooks.begin();
-			return component(props) as Node;
-		};
+		return undefined;
+	}
+	const element = node as Node;
+	if (element.props?.["aria-label"] === label) return element;
+	return findByLabel(element.props?.children, label);
+}
 
+/**
+ * 選んだ書体を保存する行の足場を作る
+ */
+function createRowHarness(value: string) {
+	const { hooks, rows } = createClient({ mono: "B", sans: "A" });
+	const component = rows[0]?.component;
+	if (component === undefined) throw new Error("行が登録されていない");
+	const saved: string[] = [];
+	const state = { revision: 1, value };
+	const props = {
+		save: (next: string) => {
+			saved.push(next);
+		},
+		t: (key: string, params?: Record<string, string>) =>
+			params === undefined ? key : `${key}:${params.name ?? ""}`,
+		useStore: (select: (next: typeof state) => unknown) => select(state),
+	};
+	const render = () => {
+		hooks.begin();
+		return component(props) as Node;
+	};
+	// 開いた直後は一覧の読み込みを待つ必要がある
+	const openPicker = async () => {
 		let tree = render();
+		requireHandler<() => void>(
+			findAllByClass(tree, "dsh-ui-font-add")[0] as Node,
+			"onClick",
+		)();
+		// 開いた状態で描き直すと読み込みが始まる
+		tree = render();
+		await Bun.sleep(0);
+		return render();
+	};
+	return { openPicker, render, saved };
+}
+
+/**
+ * 端末の書体を列挙する API を差し替える
+ */
+function stubLocalFonts(query: unknown): void {
+	Object.defineProperty(globalThis, "queryLocalFonts", {
+		configurable: true,
+		value: query,
+	});
+}
+
+describe("設定行", () => {
+	test("保存済みのスタックを順番どおりのチップとプレビューで見せる", () => {
+		const { render } = createRowHarness(
+			'"JetBrains Mono", "BIZ UDPGothic", monospace',
+		);
+		const tree = render();
+
 		expect(collectText(tree)).toContain("sans.title");
-		expect(requireNode(tree, "Input").props.value).toBe("Old Sans");
-
-		requireHandler<() => void>(requireNode(tree, "Input"), "onFocus")();
-		tree = render();
-		requireHandler<(event: unknown) => void>(
-			requireNode(tree, "Input"),
-			"onChange",
-		)({ target: { value: "  New Sans  " } });
-		tree = render();
-		requireHandler<() => void>(requireNode(tree, "Input"), "onBlur")();
-		render();
-
-		expect(saved).toEqual(["New Sans"]);
+		expect(
+			findAllByClass(tree, "dsh-ui-font-chip").map((chip) => collectText(chip)),
+		).toEqual(["JetBrains Mono", "BIZ UDPGothic", "monospace"]);
+		const [preview] = findAllByClass(tree, "dsh-ui-font-preview");
+		expect(preview?.props.style).toEqual({
+			fontFamily: '"JetBrains Mono", "BIZ UDPGothic", monospace',
+		});
 	});
 
-	test("スタイルシートを壊す入力は保存せず既定の説明へ戻す", () => {
-		const { hooks, rows } = createClient({ sans: "A", mono: "B" });
-		const component = rows[0]?.component;
-		if (component === undefined) throw new Error("行が登録されていない");
-		const saved: string[] = [];
-		const state = { revision: 1, value: "Old Sans" };
-		const props = {
-			save: (value: string) => {
-				saved.push(value);
-			},
-			t: (key: string) => key,
-			useStore: (select: (next: typeof state) => unknown) => select(state),
-		};
-		const render = () => {
-			hooks.begin();
-			return component(props) as Node;
-		};
+	test("一覧から選ぶと末尾へ足して保存する", async () => {
+		stubLocalFonts(async () => [
+			{ family: "Consolas" },
+			{ family: "BIZ UDPGothic" },
+			{ family: "Consolas" },
+		]);
+		const { openPicker, render, saved } = createRowHarness(
+			"Consolas, monospace",
+		);
+		const tree = await openPicker();
+		const options = findAllByClass(tree, "dsh-ui-font-option");
 
-		let tree = render();
-		requireHandler<() => void>(requireNode(tree, "Input"), "onFocus")();
-		tree = render();
+		// 選択済みだが一覧に無い書体は外せるように先頭へ出し 残りは重複を畳んで名前順に並べる
+		expect(options.map((option) => collectText(option))).toEqual([
+			"monospace",
+			"BIZ UDPGothic",
+			"Consolas",
+		]);
+		expect(findByLabel(tree, "stack.search")).toBeDefined();
+		expect(
+			options.find((option) => collectText(option) === "Consolas")?.props[
+				"aria-selected"
+			],
+		).toBe(true);
+		expect(
+			options.find((option) => collectText(option) === "BIZ UDPGothic")?.props[
+				"aria-selected"
+			],
+		).toBe(false);
+
+		requireHandler<() => void>(
+			options.find((option) => collectText(option) === "BIZ UDPGothic") as Node,
+			"onClick",
+		)();
+		expect(saved).toEqual(['Consolas, monospace, "BIZ UDPGothic"']);
+		render();
+	});
+
+	test("選択済みの書体をもう一度押すと外れる", async () => {
+		stubLocalFonts(async () => [
+			{ family: "Consolas" },
+			{ family: "monospace" },
+		]);
+		const { openPicker, saved } = createRowHarness("Consolas, monospace");
+		const tree = await openPicker();
+		const options = findAllByClass(tree, "dsh-ui-font-option");
+
+		requireHandler<() => void>(
+			options.find((option) => collectText(option) === "Consolas") as Node,
+			"onClick",
+		)();
+		expect(saved).toEqual(["monospace"]);
+	});
+
+	test("検索語が一覧に無ければその名前を足せる", async () => {
+		stubLocalFonts(async () => [{ family: "Consolas" }]);
+		const { openPicker, render, saved } = createRowHarness(
+			"Consolas, sans-serif",
+		);
+		let tree = await openPicker();
+
 		requireHandler<(event: unknown) => void>(
 			requireNode(tree, "Input"),
 			"onChange",
-		)({ target: { value: "Bad; Sans" } });
-		tree = render();
-		expect(requireNode(tree, "Input").props["aria-invalid"]).toBe(true);
-		expect(collectText(tree)).toContain("stack.invalid");
-
-		requireHandler<() => void>(requireNode(tree, "Input"), "onBlur")();
+		)({ target: { value: "cons" } });
 		tree = render();
 
-		expect(saved).toEqual([]);
-		expect(requireNode(tree, "Input").props.value).toBe("Old Sans");
+		// 検索中は一覧に無い選択済みの書体も絞り込み 一致が無い名前は追加できる行を添える
+		expect(
+			findAllByClass(tree, "dsh-ui-font-option").map((option) =>
+				collectText(option),
+			),
+		).toEqual(["Consolas", "stack.custom:cons"]);
+
+		requireHandler<(event: unknown) => void>(
+			requireNode(tree, "Input"),
+			"onChange",
+		)({ target: { value: "My Face; Extra" } });
+		tree = render();
+
+		const [custom] = findAllByClass(tree, "dsh-ui-font-option").filter(
+			(option) => collectText(option).startsWith("stack.custom"),
+		);
+		expect(collectText(custom as Node)).toBe("stack.custom:My Face; Extra");
+		requireHandler<() => void>(custom as Node, "onClick")();
+		expect(saved).toEqual(['Consolas, sans-serif, "My Face Extra"']);
+	});
+
+	test("書体を外すと残りだけを保存する", () => {
+		const { render, saved } = createRowHarness(
+			'"JetBrains Mono", Consolas, monospace',
+		);
+		const tree = render();
+
+		requireHandler<() => void>(
+			findByLabel(tree, "stack.remove:Consolas") as Node,
+			"onClick",
+		)();
+		expect(saved).toEqual(['"JetBrains Mono", monospace']);
+	});
+
+	test("並べ替えるとフォールバックの順番が変わる", () => {
+		const { render, saved } = createRowHarness("Consolas, monospace");
+		const tree = render();
+
+		requireHandler<() => void>(
+			findByLabel(tree, "stack.later:Consolas") as Node,
+			"onClick",
+		)();
+		expect(saved).toEqual(["monospace, Consolas"]);
+	});
+
+	test("端末の書体を列挙できない場合は同梱の一覧を出す", async () => {
+		stubLocalFonts(undefined);
+		const { openPicker } = createRowHarness("Consolas");
+		const tree = await openPicker();
+
+		expect(collectText(tree)).toContain("stack.unsupported");
+		expect(
+			findAllByClass(tree, "dsh-ui-font-option").map((option) =>
+				collectText(option),
+			),
+		).toContain("BIZ UDPGothic");
+	});
+
+	test("許可されなかった場合も同梱の一覧へ落とす", async () => {
+		stubLocalFonts(async () => {
+			throw new Error("denied");
+		});
+		const { openPicker } = createRowHarness("Consolas");
+		const tree = await openPicker();
+
+		expect(collectText(tree)).toContain("stack.denied");
+		expect(findAllByClass(tree, "dsh-ui-font-option").length).toBeGreaterThan(
+			0,
+		);
 	});
 });

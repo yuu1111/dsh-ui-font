@@ -142,3 +142,75 @@ export function buildFontCss(settings: FontSettings): string {
 	];
 	return `:root,body{${declarations.join(";")};}`;
 }
+
+/**
+ * 引用符を付けずに書ける総称フォント名
+ */
+export const GENERIC_FAMILIES: readonly string[] = [
+	"cursive",
+	"emoji",
+	"fantasy",
+	"fangsong",
+	"math",
+	"monospace",
+	"sans-serif",
+	"serif",
+	"system-ui",
+	"ui-monospace",
+	"ui-rounded",
+	"ui-sans-serif",
+	"ui-serif",
+];
+
+/**
+ * @description 1つの書体名をフォントスタックへ書ける形にする
+ *
+ * 空白や記号を含む名前は引用符が要る 総称フォント名は引用符を付けると別物になるため
+ * そのまま返す 危険な文字は先に落とす
+ * @param name - 書体名
+ * @returns スタックへ書ける1要素 空になった場合は空文字
+ */
+export function quoteFamily(name: unknown): string {
+	const cleaned = sanitizeFontStack(name).replace(/^["']|["']$/g, "");
+	if (cleaned === "") return "";
+	if (GENERIC_FAMILIES.includes(cleaned.toLowerCase())) {
+		return cleaned.toLowerCase();
+	}
+	// 識別子として書ける名前は引用符を省き 既定値と同じ見た目にそろえる
+	if (/^[A-Za-z][A-Za-z0-9-]*$/.test(cleaned)) return cleaned;
+	return `"${cleaned.replace(/"/g, "")}"`;
+}
+
+/**
+ * @description フォントスタックを書体名の並びへ分ける
+ *
+ * 引用符は外し 空要素と重複は落とす 順番はフォールバックの優先順位そのもの
+ * @param value - 保存済みのフォントスタック
+ * @returns 書体名の並び
+ */
+export function parseFontStack(value: unknown): string[] {
+	if (typeof value !== "string") return [];
+	const families: string[] = [];
+	for (const part of value.split(",")) {
+		const cleaned = sanitizeFontStack(part).replace(/^["']|["']$/g, "");
+		if (cleaned === "" || families.includes(cleaned)) continue;
+		families.push(cleaned);
+	}
+	return families;
+}
+
+/**
+ * @description 書体名の並びをフォントスタックへ戻す
+ *
+ * 空の並びはそのまま空文字になる 呼び出し側は既定値へ寄せること
+ * @param families - 書体名の並び
+ * @returns スタイルシートへ書けるフォントスタック
+ */
+export function formatFontStack(families: readonly string[]): string {
+	const parts: string[] = [];
+	for (const family of families) {
+		const quoted = quoteFamily(family);
+		if (quoted !== "") parts.push(quoted);
+	}
+	return parts.join(", ");
+}

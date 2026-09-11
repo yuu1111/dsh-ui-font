@@ -30,14 +30,18 @@ dsh web
 
 ## 設定
 
-**設定 → 一般** を開き どちらかの行を書き換える 値はブラウザの `font-family` と同じ書式のリストで書く
+**設定 → 一般** を開くと 保存済みの書体が順番どおりのチップで並び そのスタックで組んだ見本と **フォントを追加** ボタンが出る
 
 | 行 | 設定キー | 対象 |
 | --- | --- | --- |
 | 本文フォント | `sans` | 本文とUI全般 |
 | コードフォント | `mono` | コードブロックと等幅表示 |
 
-確定はフォーカスを外すか Enter で 取り消しは Escape 無効な値は保存済みの値へ戻る 値はスタイルシートへ埋め込むため波括弧 セミコロン 山括弧は受け付けない 書き換えたフィールドだけが保存され 残りは同梱の既定値を使う
+**フォントを追加** を押すと この端末に入っている書体の一覧が検索つきで開く 一覧はブラウザの `queryLocalFonts()` で読み 各行はその書体自身で描く 初回は Chrome がフォントへのアクセスを確認する すでにスタックへ入っている書体には印が付き 選ぶと末尾へ足される 続けて選べるようパネルは開いたままになる ブラウザが一覧を出せない場合や確認を拒否した場合は よく使う書体の短い一覧へ落ちてその旨を表示する 一覧に無い名前を検索した場合は `「名前」を追加` の行が出るため ブラウザが解決できる書体はどのみち使える
+
+各チップには 前へ出す 後ろへ送る 外す の3つのボタンが付く 並び順がそのままフォールバックの順番になるため 日本語対応フォントはラテン書体の後ろへ残す 変更はその場で保存され スタックが変わらない場合は何も書かない
+
+保存される値はこれまでどおり CSS の `font-family` リストなので 手で編集してもよい 波括弧 セミコロン 山括弧はスタイルシートへ埋め込む前に落とす 書き換えたフィールドだけが保存され 残りは同梱の既定値を使う
 
 ```yaml
 # $DSH_HOME/settings.yaml
@@ -61,12 +65,12 @@ JetBrains Mono は日本語グリフを持たないため、既定の `sans` は
 | パス | 役割 |
 | --- | --- |
 | `src/index.ts` | ホスト側 `ui-font` 設定セクションの登録と 配信する index へのスタックの差し込み |
-| `src/client.tsx` | ブラウザ側 スタイルシートの適用と設定2行の登録 |
-| `src/shared.ts` | 両側で共有する値 namespace 既定値 無害化 スタイルシートの組み立て |
+| `src/client.tsx` | ブラウザ側 スタイルシートの適用と設定2行の登録（書体の選択UIを含む） |
+| `src/shared.ts` | 両側で共有する値 namespace 既定値 無害化 スタックの分解と整形 スタイルシートの組み立て |
 | `build.ts` | Bun によるビルド ホスト側は ESM ブラウザ側は CJS にしてローダー形式へ包む |
 | `cordis.patch.yml` | `ui-font` 行をプロファイルツリーへ挿入する |
 | `lib/` | `bun run build` と `prepack` が生成する 追跡しないためローカルと公開 tarball の中にだけ存在する |
-| `tests/host.test.ts` `tests/client.test.ts` | ビルド済み `lib/` に対する契約テスト |
+| `tests/host.test.ts` `tests/client.test.ts` `tests/shared.test.ts` | ビルド済み `lib/` に対する契約テスト |
 
 ## 仕組み
 
@@ -74,6 +78,7 @@ JetBrains Mono は日本語グリフを持たないため、既定の `sans` は
 - ホスト側は `webserver/index-inject` へ `{ kind: "style" }` の行を1つ積む 行は index を配るたびに集められ `<head>` の直後へ入るため 最初の描画から保存済みのスタックが効き `settings.yaml` の手編集も再起動なしで次の再読み込みに乗る
 - ブラウザ側は `inject: ["slots", "locale", "settingsScope"]` を宣言し `settingsScope.bind()` で `ui-font` を購読して `style[data-plugin-css="dsh-ui-font/font-family.css"]` の1枚を追従させる トークンを書く権威は1つで 両側とも同じ `:root,body{... !important}` を出す クライアント側が後から積むタグが同じ強さでは後勝ちになり ホスト側の行はクライアントが動き出す前を覆う
 - 行は `settings.general.item` スロットへ `id: "dsh-ui-font-sans"` / `"dsh-ui-font-mono"` `order: 70` / `71` で登録するため 組み込みの配色とフォントサイズの行の後ろへ並ぶ 辞書は `en` `zh` `ja` を同梱し それ以外のロケールは英語へ落ちる
+- 行は保存済みのスタックを書体名へ分解してチップで見せ 保存のたびに `formatFontStack()` で組み直すため 設定ファイルの中身は往復しても崩れない CSS のリストのままになる 一覧は行の描画ごとに `globalThis.queryLocalFonts()` で1度だけ読み 使えない場合 空だった場合 拒否された場合は同梱の一覧へ落ちて行が操作不能にならないようにする
 - `!important` が要るのは ui-layout の presenter が解決済みトークンを `document.body` のインラインカスタムプロパティとして書くため 素の `:root` 宣言では全子孫で負ける
 
 `--dsw-font-mono` は既定のスタイルシートに宣言が無いが、一部コンポーネントが `var(--dsw-font-mono, ui-monospace, monospace)` として読むため併せて上書きする
@@ -99,13 +104,13 @@ dsh plugin --profile web add "link:$((Resolve-Path .\dsh-ui-font).Path)"
 
 ## リリース
 
-`version` を上げて commit し 対応するタグ（`v1.0.0` ↔ `1.0.0`）で GitHub Release を公開する `.github/workflows/release.yml` が `contents: read` の job で tarball を作り タグと `package.json` の version を照合したうえで 別 job から npm trusted publishing（`--provenance`）で公開するため 長期の npm token を保存しない
+`version` を上げて commit し 対応するタグ（`v1.1.0` ↔ `1.1.0`）で GitHub Release を公開する `.github/workflows/release.yml` が `contents: read` の job で tarball を作り タグと `package.json` の version を照合したうえで 別 job から npm trusted publishing（`--provenance`）で公開するため 長期の npm token を保存しない
 
 ## 検証済み環境
 
 - DSH `0.1.5-rc.2`（`@deepseek-ai/dsh-client-ui-settings` `0.1.5-rc.2`）Windows 11 / Chromium
-- `bun test` モジュールID 公開するプラグイン面 設定セクションの登録 index のスタイル行 現在値の切り替え namespace の購読 スタイルシートの更新 行の登録 行の編集経路
-- 実ブラウザでの確認 配信された index に設定済みスタックの `<style>` 行が入り **設定 → 一般** に2行が保存値つきで並ぶ 行を編集すると `$DSH_HOME/settings.yaml` へ `ui-font:` が書かれ 再読み込みなしで本文の計算済みフォントが変わる セクションを消すと既定値へ戻る
+- `bun test` モジュールID 公開するプラグイン面 設定セクションの登録 index のスタイル行 現在値の切り替え namespace の購読 スタイルシートの更新 行の登録 スタックの分解と整形 選択UIの各経路（導入済み一覧 同梱一覧への退避 アクセス拒否 自由入力の追加）チップの削除と並べ替え
+- 実ブラウザでの確認 配信された index に設定済みスタックの `<style>` 行が入り **設定 → 一般** に2行が保存済みの書体をチップで並べる 選択UIはこの端末に入っている174書体を列挙して検索で絞り込める 書体を足すとスタックの末尾へ入り再読み込みなしで本文の計算済みフォントが変わり 外すと元へ戻り 並べ替えると順番が入れ替わる いずれの変更も `$DSH_HOME/settings.yaml` へ書かれ コンソールエラーは出ない
 
 ## ライセンス
 

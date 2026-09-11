@@ -18,22 +18,15 @@ DSH の Web GUI は **設定 → 一般** で配色と会話本文のフォン�
 ## 導入
 
 ```powershell
-dsh plugin --profile web add github:yuu1111/dsh-ui-font
+dsh plugin --profile web add dsh-ui-font
 dsh web
 ```
 
-`dsh plugin` はプロファイルディレクトリで pnpm へ転送し、`dsh.bundle` を宣言する依存を `dsh.profile.bundles` へ自動で追加する 手作業での patch 編集は不要 `lib/` をコミットしているため git からの導入にビルドは要らない
+`dsh plugin` はパッケージをプロファイルへ導入し、`dsh.bundle` を宣言する依存を `dsh.profile.bundles` へ自動で追加する 手作業での patch 編集は不要
 
 起動中の `dsh web` は `dsh.profile.bundles` を起動時に一度だけ組む 監視対象はユーザーの patch 層（`cordis.patch.yml`）だけなので、**導入後は `dsh web` を再起動する** ブラウザの再読み込みだけでは反映されない
 
-ローカルのチェックアウトを使う場合
-
-```powershell
-git clone https://github.com/yuu1111/dsh-ui-font
-dsh plugin --profile web add "link:$((Resolve-Path .\dsh-ui-font).Path)"
-```
-
-チェックアウトはプロファイルからシンボリックリンクで参照される 以降の編集は `bun run build`（`lib/` を再生成）と `dsh web` の再起動だけで反映される 削除は `dsh plugin --profile web remove dsh-ui-font`
+削除は `dsh plugin --profile web remove dsh-ui-font`
 
 ## 設定
 
@@ -62,7 +55,7 @@ const FONT_SANS = "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Yu Gothic 
 | `src/client.ts` | ブラウザ側 フォント定数とトークン層の本体 |
 | `build.ts` | Bun によるビルド ホスト側は ESM ブラウザ側は CJS にしてローダー形式へ包む |
 | `cordis.patch.yml` | `ui-font` 行をプロファイルツリーへ挿入する |
-| `lib/` | 生成物だがコミットする DSH が実際に読む `index.js` と `client.js` |
+| `lib/` | `bun run build` と `prepack` が生成する 追跡しないためローカルと公開 tarball の中にだけ存在する |
 | `tests/client.test.ts` | ビルド済み `lib/client.js` に対する契約テスト |
 
 ## 仕組み
@@ -80,11 +73,19 @@ bun install
 bun run check    # @yuu1111/tsconfig/bun.json を使った tsc --noEmit
 bun run lint     # biome check .
 bun run format   # biome check --write --unsafe .
-bun test         # window.__ModuleLoader__ をスタブして lib/client.js を読む
+bun run test     # lib/ をビルドしてからテストを実行する
 bun run build    # lib/ を再生成する
 ```
 
-`lib/` を追跡するのは git からの導入にビルドを不要にするため CI は `bun run build` の結果がコミット済みの `lib/` と一致しなければ失敗する
+公開せずに手元のチェックアウトを実プロファイルで試す場合はパスで導入し 変更のたびに `bun run build` を実行する
+
+```powershell
+dsh plugin --profile web add "link:$((Resolve-Path .\dsh-ui-font).Path)"
+```
+
+## リリース
+
+`version` を上げて commit し 対応するタグ（`v0.1.0` ↔ `0.1.0`）で GitHub Release を公開する `.github/workflows/release.yml` が `contents: read` の job で tarball を作り タグと `package.json` の version を照合したうえで 別 job から npm trusted publishing（`--provenance`）で公開するため 長期の npm token を保存しない
 
 ## 検証済み環境
 

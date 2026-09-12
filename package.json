@@ -91,7 +91,7 @@
 		"@deepseek-ai/schemastery": "^3.18.2",
 		"@types/bun": "^1.4.2",
 		"@types/react": "~18.3.1",
-		"@yuu1111/biome-config": "^1.3.5",
+		"@yuu1111/biome-config": "^2.0.0",
 		"@yuu1111/tsconfig": "^1.0.4",
 		"typescript": "^7.0.2"
 	}

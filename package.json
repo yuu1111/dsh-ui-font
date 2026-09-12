@@ -1,6 +1,6 @@
 {
 	"name": "dsh-ui-font",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"description": "DeepSeek Harness Web GUI plugin: set the UI and code font families from Settings → General (--dsw-font-family, --dsw-font-mono, --ds-font-family-code)",
 	"keywords": [
 		"cordis",

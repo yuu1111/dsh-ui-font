@@ -1,5 +1,5 @@
 /**
- * @description ホスト側の本体
+ * ホスト側の本体
  *
  * フォントは設定 namespace `ui-font` の値として持ち プラグインの config を
  * 構成側の既定値（base 層）として登録する 保存済みのフォントはサーバーが配る
@@ -60,7 +60,7 @@ interface StyleInjection {
  */
 interface SettingsInstaller {
 	/**
-	 * @description 構成側の既定値を持つ設定セクションを登録する
+	 * 構成側の既定値を持つ設定セクションを登録する
 	 * @param owner - 登録する側のコンテキスト
 	 * @param namespace - 登録する namespace
 	 * @param schema - セクションを解決するスキーマ
@@ -84,7 +84,7 @@ interface SettingsInstaller {
  */
 interface HostContext {
 	/**
-	 * @description サービスが揃うまで待ってから副作用を登録する
+	 * サービスが揃うまで待ってから副作用を登録する
 	 * @param names - 待つサービス名
 	 * @param callback - 揃った後に呼ばれる関数
 	 */
@@ -92,19 +92,22 @@ interface HostContext {
 		names: readonly string[],
 		callback: (ctx: HostContext & { settings: SettingsInstaller }) => void,
 	): void;
+
 	/**
 	 * 解決済みのサービスを取り出す 未提供なら undefined
 	 */
-	get(name: string): unknown /**
-	 * @description イベントを購読する
+	get(name: string): unknown;
+
+	/**
+	 * イベントを購読する
 	 * @param event - イベント名
 	 * @param listener - 購読する関数
-	 */;
+	 */
 	on(event: string, listener: (table: StyleInjection[]) => void): void;
 }
 
 /**
- * @description プラグインの現在のフォント設定を読む
+ * プラグインの現在のフォント設定を読む
  *
  * 値は index を配るたびに読む ここで固定するとプロセスの寿命だけ古い値が残る
  * @param current - 現在値を返す関数
@@ -115,7 +118,7 @@ function readSettings(current: () => FontSettings): FontSettings {
 }
 
 /**
- * @description フォントのスタイル行を組み立てる
+ * フォントのスタイル行を組み立てる
  *
  * クライアント側プラグインが動き出す前の描画でも保存済みのフォントを使う
  * @param settings - 適用するフォントスタック
@@ -126,7 +129,7 @@ function fontStyleInjection(settings: FontSettings): StyleInjection {
 }
 
 /**
- * @description フォント設定を登録し 初回描画用のスタイルを配る
+ * フォント設定を登録し 初回描画用のスタイルを配る
  * @param ctx - ホスト側 cordis コンテキスト
  * @param config - プラグインの config 既定値が入った設定
  */

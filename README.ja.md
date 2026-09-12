@@ -69,6 +69,7 @@ JetBrains Mono は日本語グリフを持たないため、既定の `sans` は
 | `src/shared.ts` | 両側で共有する値 namespace 既定値 無害化 スタックの分解と整形 スタイルシートの組み立て |
 | `build.ts` | Bun によるビルド ホスト側は ESM ブラウザ側は CJS にしてローダー形式へ包む |
 | `cordis.patch.yml` | `ui-font` 行をプロファイルツリーへ挿入する |
+| `quality.config.ts` `knip.ts` | 品質ゲート `quality-check` が回す engine と opt-in の規則 Knip の入口 |
 | `lib/` | `bun run build` と `prepack` が生成する 追跡しないためローカルと公開 tarball の中にだけ存在する |
 | `tests/host.test.ts` `tests/client.test.ts` `tests/shared.test.ts` | ビルド済み `lib/` に対する契約テスト |
 
@@ -87,11 +88,12 @@ JetBrains Mono は日本語グリフを持たないため、既定の `sans` は
 
 ```powershell
 bun install
-bun run check    # @yuu1111/tsconfig/bun.json を使った tsc --noEmit
-bun run lint     # biome check .
-bun run format   # biome check --write --unsafe .
-bun run test     # lib/ をビルドしてからテストを実行する
-bun run build    # lib/ を再生成する
+bun run check          # @yuu1111/tsconfig/bun.json を使った tsc --noEmit
+bun run lint           # biome check .
+bun run format         # biome check --write --unsafe .
+bun run check:quality  # biome tsc knip と code comment document TSDoc の各 checker を回す
+bun run test           # lib/ をビルドしてからテストを実行する
+bun run build          # lib/ を再生成する
 ```
 
 ブラウザ側が実行時に `require()` してよいのは shell が最初から配る `react` `react/jsx-runtime` `@deepseek-ai/dsh-client-store` `@deepseek-ai/dsh-client-ui-primitives` だけ それ以外の specifier を検出すると `build.ts` がビルドを失敗させる また shell は `react/jsx-dev-runtime` を配らないため JSX は本番ランタイムへ固定する

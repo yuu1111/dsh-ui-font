@@ -1,5 +1,5 @@
 /**
- * @description ホスト側とブラウザ側で共有する定義
+ * ホスト側とブラウザ側で共有する定義
  *
  * ここには値と純粋関数だけを置く ブラウザ側のバンドルは実行時に何も解決できないため
  * 共有できるのは型と定数と副作用のない変換に限られる
@@ -69,15 +69,7 @@ export interface FontSettings {
 }
 
 /**
- * 設定値の既定値
- */
-export const DEFAULT_SETTINGS: FontSettings = {
-	sans: DEFAULT_SANS,
-	mono: DEFAULT_MONO,
-};
-
-/**
- * @description スタイルシートへ埋め込める形へフォントスタックを整える
+ * スタイルシートへ埋め込める形へフォントスタックを整える
  *
  * 設定値は利用者が書くため 波括弧やセミコロンが混ざるとスタイルシート全体を壊す
  * 危険な文字を落とし 空白を詰めてから使う
@@ -96,7 +88,7 @@ export function sanitizeFontStack(value: unknown): string {
 }
 
 /**
- * @description 設定セクションから1つのフィールドを読む
+ * 設定セクションから1つのフィールドを読む
  *
  * 設定値は共有の設定ストアから来るため 形は確かめずに名前で引く
  * @param section - 設定セクションの値
@@ -112,7 +104,7 @@ function readField(section: unknown, field: string): unknown {
 }
 
 /**
- * @description 設定セクションからフォントスタックを取り出す
+ * 設定セクションからフォントスタックを取り出す
  *
  * 未設定 空文字 壊れた値のいずれも既定値へ寄せる
  * @param section - 設定セクションの値
@@ -128,7 +120,7 @@ export function readFontSettings(section: unknown): FontSettings {
 }
 
 /**
- * @description フォントを上書きするスタイルシートを組み立てる
+ * フォントを上書きするスタイルシートを組み立てる
  *
  * `!important` は ui-layout の presenter が body へ書くインライン値を上回るために要る
  * 配色テーマを切り替えてもフォントは変わらないため light と dark で同じ値を使う
@@ -163,7 +155,7 @@ export const GENERIC_FAMILIES: readonly string[] = [
 ];
 
 /**
- * @description 1つの書体名をフォントスタックへ書ける形にする
+ * 1つの書体名をフォントスタックへ書ける形にする
  *
  * 空白や記号を含む名前は引用符が要る 総称フォント名は引用符を付けると別物になるため
  * そのまま返す 危険な文字は先に落とす
@@ -182,7 +174,7 @@ export function quoteFamily(name: unknown): string {
 }
 
 /**
- * @description フォントスタックを書体名の並びへ分ける
+ * フォントスタックを書体名の並びへ分ける
  *
  * 引用符は外し 空要素と重複は落とす 順番はフォールバックの優先順位そのもの
  * @param value - 保存済みのフォントスタック
@@ -200,7 +192,7 @@ export function parseFontStack(value: unknown): string[] {
 }
 
 /**
- * @description 書体名の並びをフォントスタックへ戻す
+ * 書体名の並びをフォントスタックへ戻す
  *
  * 空の並びはそのまま空文字になる 呼び出し側は既定値へ寄せること
  * @param families - 書体名の並び

@@ -52,6 +52,7 @@
 		"check": "tsc -p tsconfig.json",
 		"lint": "biome check .",
 		"format": "biome check --write --unsafe .",
+		"check:quality": "quality-check",
 		"test": "bun run build && bun test"
 	},
 	"dsh": {
@@ -92,7 +93,15 @@
 		"@types/bun": "^1.4.2",
 		"@types/react": "~19.3.0",
 		"@yuu1111/biome-config": "^2.0.1",
+		"@yuu1111/code-style-check": "^0.1.1",
+		"@yuu1111/comment-check": "^2.2.2",
+		"@yuu1111/document-style-check": "^0.3.4",
+		"@yuu1111/knip-config": "^1.0.7",
+		"@yuu1111/quality-check": "^0.9.0",
 		"@yuu1111/tsconfig": "^1.0.7",
+		"@yuu1111/tsdoc-check": "^2.0.3",
+		"knip": "^6.35.1",
+		"react": "^19.3.0",
 		"typescript": "^7.0.2"
 	}
 }

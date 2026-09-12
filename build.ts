@@ -1,5 +1,5 @@
 /**
- * @description lib/ をビルドする
+ * lib/ をビルドする
  *
  * ホスト側は schemastery を取り込んだ ESM として出し ブラウザ側は CJS へ束ねてから
  * client-modules が配信するローダー形式（`window.__ModuleLoader__.load({ id, factory })`）
@@ -58,7 +58,7 @@ const LOADER_TAIL = `
 const EXPORTS = ["apply", "inject"];
 
 /**
- * @description 失敗したビルドのログを出して中断する
+ * 失敗したビルドのログを出して中断する
  * @param label - どちらのビルドか
  * @param result - Bun.build の結果
  */
@@ -72,7 +72,7 @@ function assertBuilt(
 }
 
 /**
- * @description 束ねたバンドルが満たすべき条件を確かめる
+ * 束ねたバンドルが満たすべき条件を確かめる
  *
  * 実行時に解決するモジュールを許可リストへ限定し プラグイン面の公開を確認する
  * @param body - 包む前の CJS バンドル

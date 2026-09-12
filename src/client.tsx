@@ -1,5 +1,5 @@
 /**
- * @description ブラウザ側の本体
+ * ブラウザ側の本体
  *
  * 保存済みのフォントはスタイルタグ1枚で当てる 書体は配色に依存しないため light と
  * dark へ同じ値を渡し `!important` で ui-layout の presenter が body へ書く
@@ -153,8 +153,9 @@ interface ClientContext {
 	readonly locale: LocaleService;
 	readonly settingsScope: SettingsScopeBinder;
 	readonly logger?: { warn?(...args: unknown[]): void };
+
 	/**
-	 * @description プラグインの寿命に紐づけて副作用を登録する
+	 * プラグインの寿命に紐づけて副作用を登録する
 	 * @param callback - 登録する副作用 返した関数は破棄時に呼ばれる
 	 * @param label - 診断用の名前
 	 */
@@ -328,7 +329,7 @@ const FALLBACK_FAMILIES: readonly string[] = [
 ];
 
 /**
- * @description 端末に入っている書体を読む
+ * 端末に入っている書体を読む
  *
  * 許可が下りた場合だけ実際の一覧を返す 使えない場合と拒否された場合は同梱の一覧へ
  * 落として 選べる書体が無くなる状態を作らない 結果の保持は呼び出し側が行う
@@ -361,7 +362,7 @@ async function loadCatalog(): Promise<CatalogState> {
 }
 
 /**
- * @description 一覧へ並べる候補を組み立てる
+ * 一覧へ並べる候補を組み立てる
  *
  * 選択済みの書体は一覧に無くても外せるように先頭へ混ぜる 検索語が一覧のどれとも
  * 一致しない場合は その名前をそのまま追加できる行を足す
@@ -423,7 +424,7 @@ function buildOptions(
 }
 
 /**
- * @description 行の見た目を1枚のスタイルタグとして用意する
+ * 行の見た目を1枚のスタイルタグとして用意する
  * @param ctx - クライアント側 cordis コンテキスト
  */
 function installRowStyles(ctx: ClientContext): void {
@@ -445,7 +446,7 @@ function installRowStyles(ctx: ClientContext): void {
 }
 
 /**
- * @description フォントを当てるスタイルタグを用意する
+ * フォントを当てるスタイルタグを用意する
  *
  * ホスト側も初回描画のために同じ宣言を差し込むが 属性を持たないため このタグは
  * 後から head の末尾へ積まれ 同じ強さの宣言どうしでは後勝ちになる 値がまだ
@@ -471,7 +472,7 @@ function createStylesheet(): (settings: FontSettings) => void {
 }
 
 /**
- * @description 並びの中の1つを前後へ動かす
+ * 並びの中の1つを前後へ動かす
  * @param families - 現在の並び
  * @param index - 動かす位置
  * @param offset - 動かす向き
@@ -493,7 +494,7 @@ function moveFamily(
 }
 
 /**
- * @description 1つのフォントを選ぶ行を作る
+ * 1つのフォントを選ぶ行を作る
  * @param field - 書き換える設定フィールド
  * @param titleKey - 見出しの辞書キー
  * @param descriptionKey - 説明の辞書キー
@@ -562,7 +563,7 @@ function createFontRow(
 			// 枠組みの Input は ref を取れないため 開いた後に中から探して合わせる
 			if (!open) return;
 			panelRef.current?.querySelector("input")?.focus();
-		}, [open, catalog.status]);
+		}, [open]);
 
 		const commit = (next: readonly string[]) => {
 			setFamilies([...next]);
@@ -757,7 +758,7 @@ function createFontRow(
 export const inject = ["slots", "locale", "settingsScope"];
 
 /**
- * @description 保存済みのフォントを当て 設定 → 一般 の行から書き換えられるようにする
+ * 保存済みのフォントを当て 設定 → 一般 の行から書き換えられるようにする
  * @param ctx - クライアント側 cordis コンテキスト
  */
 export function apply(ctx: ClientContext): void {

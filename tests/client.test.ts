@@ -514,6 +514,29 @@ describe("apply", () => {
 		injected?.save("Saved Mono");
 		expect(scope.written).toEqual([["mono", "Saved Mono"]]);
 	});
+
+	test("浮いた面と中身の幅は枠の内側で測る", () => {
+		const { document } = createClient({ sans: "A", mono: "B" });
+		const tag = document.tags.find(
+			(current) => current.dataset.pluginCss === "dsh-ui-font/settings-row.css",
+		);
+		const css = tag?.textContent ?? "";
+		const declarations = (name: string) => {
+			const found = new RegExp(`\\.${name}\\{([^}]*)\\}`).exec(css);
+			if (found === null) throw new Error(`規則が見つからない: ${name}`);
+			return found[1] ?? "";
+		};
+
+		// 枠組みは box-sizing を全体へ当てていない 幅300pxの面が自前で持たないと
+		// 余白と枠の分だけ広がり 中の検索欄が右の枠からはみ出す
+		for (const name of [
+			"dsh-ui-font-panel",
+			"dsh-ui-font-option",
+			"dsh-ui-font-search",
+		]) {
+			expect(declarations(name)).toContain("box-sizing:border-box");
+		}
+	});
 });
 
 /**

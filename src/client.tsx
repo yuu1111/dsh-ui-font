@@ -186,6 +186,10 @@ interface FontOption {
 
 /**
  * 行の見た目 General セクションの既存行と同じ寸法と色を使う
+ *
+ * 枠組みは全体へ border-box を当てていないため 幅や高さと内側の余白を持つ面は
+ * 自分で指定しないと 余白と枠の分だけ外へ広がる 浮いた面と幅100%の部品には
+ * border-box を明示する 既存の Menu と HoverCard も同じ理由で自前で持っている
  */
 const ROW_CSS = [
 	`.${STYLE_TAG_MARKER}-row{align-items:center;gap:8px;padding:16px 0;display:flex;border-bottom:.5px solid var(--dsw-alias-border-l2)}`,
@@ -203,16 +207,16 @@ const ROW_CSS = [
 	`.${STYLE_TAG_MARKER}-control{align-items:center;flex:none;display:inline-flex}`,
 	`.${STYLE_TAG_MARKER}-add{align-items:center;gap:6px;height:28px;padding:0 10px;color:var(--dsw-alias-label-primary);cursor:pointer;background:var(--dsw-alias-bg-l2);border:.5px solid var(--dsw-alias-border-l3);border-radius:6px;display:inline-flex;font-size:13px;line-height:18px}`,
 	`.${STYLE_TAG_MARKER}-add:hover{background:var(--dsw-alias-bg-l3)}`,
-	`.${STYLE_TAG_MARKER}-panel{position:fixed;z-index:40;flex-direction:column;width:300px;max-height:360px;padding:8px;background:var(--dsw-alias-bg-base);border:.5px solid var(--dsw-alias-border-l3);border-radius:8px;box-shadow:0 8px 24px #0003;display:flex}`,
+	`.${STYLE_TAG_MARKER}-panel{box-sizing:border-box;position:fixed;z-index:40;flex-direction:column;width:300px;max-height:360px;padding:8px;background:var(--dsw-alias-bg-base);border:.5px solid var(--dsw-alias-border-l3);border-radius:8px;box-shadow:0 8px 24px #0003;display:flex}`,
 	`.${STYLE_TAG_MARKER}-note{padding:4px 2px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:16px}`,
 	`.${STYLE_TAG_MARKER}-list{flex-direction:column;gap:2px;flex:1;min-height:0;overflow-y:auto;display:flex}`,
-	`.${STYLE_TAG_MARKER}-option{align-items:center;justify-content:space-between;gap:8px;width:100%;padding:4px 8px;color:var(--dsw-alias-label-primary);text-align:left;cursor:pointer;background:0 0;border:none;border-radius:4px;display:flex;font-size:13px;line-height:20px}`,
+	`.${STYLE_TAG_MARKER}-option{align-items:center;justify-content:space-between;gap:8px;width:100%;box-sizing:border-box;padding:4px 8px;color:var(--dsw-alias-label-primary);text-align:left;cursor:pointer;background:0 0;border:none;border-radius:4px;display:flex;font-size:13px;line-height:20px}`,
 	`.${STYLE_TAG_MARKER}-option:hover{background:var(--dsw-alias-bg-l2)}`,
 	`.${STYLE_TAG_MARKER}-optionSelected{background:var(--dsw-alias-bg-l2)}`,
 	`.${STYLE_TAG_MARKER}-optionLabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`,
 	`.${STYLE_TAG_MARKER}-footer{justify-content:flex-end;padding-top:6px;display:flex}`,
 	`.${STYLE_TAG_MARKER}-done{height:26px;padding:0 10px;color:var(--dsw-alias-label-primary);cursor:pointer;background:var(--dsw-alias-bg-l2);border:.5px solid var(--dsw-alias-border-l3);border-radius:6px;font-size:12px}`,
-	`.${STYLE_TAG_MARKER}-search{width:100%}`,
+	`.${STYLE_TAG_MARKER}-search{width:100%;box-sizing:border-box}`,
 ].join("");
 
 /**

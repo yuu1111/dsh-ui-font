@@ -197,9 +197,12 @@ interface FontOption {
  * 自分で指定しないと 余白と枠の分だけ外へ広がる 浮いた面と幅100%の部品には
  * border-box を明示する 既存の Menu と HoverCard も同じ理由で自前で持っている
  *
- * 浮いた一覧は DSH のメニュー面の寸法と色へ揃える 角丸20 内側の余白4 面は
- * --dsw-specific-menu 影は --dsw-elevation-prominent 行は最小38の角丸10 とし
- * ここで決め直した値が組み込みのメニューと食い違わないようにする 押せる面は
+ * 浮いた一覧は DSH のメニュー面の寸法と色へ揃える 角丸は組み込みの MenuSurface と
+ * 同じ `--dsw-radius-lg` 内側の余白4 面は `--dsw-specific-menu` 影は
+ * `--dsw-elevation-prominent` 行は最小38の角丸10 とし ここで決め直した値が
+ * 組み込みのメニューと食い違わないようにする `--dsw-specific-menu` は不透明では
+ * ないため面は `--dsw-menu-backdrop-filter` と必ず組で使い 背後をぼかす これが無いと
+ * 透けた本文がそのまま読めてしまう 押せる面は
  * プリミティブの Button へ任せ 自前の規則には寸法だけを残す 塗りは
  * --dsw-alias-interactive-bg-hover のように DSH に実在する名前だけを使う チップは
  * 同じ行に並ぶ FontSizeRow のステッパーと同じ面の名前を使う 設定の面は
@@ -220,7 +223,7 @@ const ROW_CSS = [
 	`.${STYLE_TAG_MARKER}-preview{color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`,
 	`.${STYLE_TAG_MARKER}-control{align-items:center;flex:none;display:inline-flex}`,
 	`.${STYLE_TAG_MARKER}-add{flex:none}`,
-	`.${STYLE_TAG_MARKER}-panel{box-sizing:border-box;position:fixed;z-index:1100;flex-direction:column;width:min(320px,100vw - 32px);max-height:min(360px,100vh - 96px);padding:4px;background:var(--dsw-specific-menu);color:var(--dsw-alias-label-primary);border:0;border-radius:20px;box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);display:flex;overflow:hidden}`,
+	`.${STYLE_TAG_MARKER}-panel{box-sizing:border-box;position:fixed;z-index:1100;flex-direction:column;width:min(320px,100vw - 32px);max-height:min(360px,100vh - 96px);padding:4px;background:var(--dsw-specific-menu);backdrop-filter:var(--dsw-menu-backdrop-filter);color:var(--dsw-alias-label-primary);border:0;border-radius:var(--dsw-radius-lg);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);display:flex;overflow:hidden}`,
 	`.${STYLE_TAG_MARKER}-note{padding:10px;color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:20px}`,
 	`.${STYLE_TAG_MARKER}-list{flex-direction:column;flex:1;min-height:0;overflow-y:auto;display:flex}`,
 	`.${STYLE_TAG_MARKER}-option{align-items:center;gap:8px;box-sizing:border-box;min-width:100%;min-height:38px;padding:6px 8px;color:var(--dsw-alias-label-primary);text-align:left;cursor:pointer;background:0 0;border:none;border-radius:10px;display:flex;font-size:14px;line-height:22px}`,

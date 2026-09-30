@@ -556,11 +556,14 @@ describe("apply", () => {
 		);
 		const css = tag?.textContent ?? "";
 
-		// 組み込みのメニューと同じ面 影 行の寸法を使う
+		// 組み込みのメニューと同じ面 影 角丸 行の寸法を使う
 		expect(css).toContain("background:var(--dsw-specific-menu)");
 		expect(css).toContain("box-shadow:var(--dsw-elevation-prominent)");
-		expect(css).toContain("border-radius:20px");
+		expect(css).toContain("border-radius:var(--dsw-radius-lg)");
 		expect(css).toContain("min-height:38px");
+
+		// 面は不透明ではないため 背後をぼかす組の宣言を必ず添える
+		expect(css).toContain("backdrop-filter:var(--dsw-menu-backdrop-filter)");
 
 		// DSH に無い一段の名前は書いても効かないため使わない
 		expect(css).not.toMatch(/--dsw-alias-bg-l[0-9]/);

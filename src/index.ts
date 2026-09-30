@@ -1,12 +1,13 @@
 /**
  * ホスト側の本体
  *
- * フォントは設定 namespace `ui-font` の値として持ち プラグインの config を
- * 構成側の既定値（base 層）として登録する 保存済みのフォントはサーバーが配る
- * index へスタイルとして差し込み クライアント側プラグインが動き出す前の描画でも
- * 効くようにする
+ * フォントはプラグインの config が持つ フィールドを volatile にしてあるため 設定文書から
+ * 書き換えられ 保存は利用者のプロファイルの patch へ落ちる 値は生きた参照として渡るので
+ * 読むたびに `.get()` で取り出す 保存済みのフォントはサーバーが配る index へスタイルとして
+ * 差し込み クライアント側プラグインが動き出す前の描画でも効くようにする
  */
 
+import type { Volatile } from "@deepseek-ai/cordis";
 import z from "@deepseek-ai/schemastery";
 import {
 	buildFontCss,
@@ -14,7 +15,6 @@ import {
 	DEFAULT_SANS,
 	type FontSettings,
 	MONO_FIELD,
-	NAMESPACE,
 	readFontSettings,
 	SANS_FIELD,
 } from "./shared";
@@ -30,7 +30,28 @@ const MAX_STACK_LENGTH = 200;
 const SAFE_STACK_PATTERN = /^[^{};<>]*$/;
 
 /**
- * 設定セクションのスキーマ 既定値はこのプラグインが同梱するフォントスタック
+ * ホスト側が読む設定
+ *
+ * volatile にしたフィールドは生きた参照として渡る 設定文書の値が変わると同じ参照の
+ * `.get()` が新しい値を返すため 参照を持ち回って読むたびに取り出す
+ */
+export interface Config {
+	/**
+	 * 本文とUIへ当てるフォントスタック
+	 */
+	readonly [SANS_FIELD]: Volatile<string>;
+
+	/**
+	 * コードと等幅表示へ当てるフォントスタック
+	 */
+	readonly [MONO_FIELD]: Volatile<string>;
+}
+
+/**
+ * 設定セクションのスキーマ
+ *
+ * 既定値はこのプラグインが同梱するフォントスタック `volatile()` を付けたフィールドだけが
+ * 設定 → 一般 の面から書き換えられ 保存はプロファイルの patch へ落ちる
  */
 export const Config = z.object({
 	[SANS_FIELD]: z
@@ -38,13 +59,15 @@ export const Config = z.object({
 		.max(MAX_STACK_LENGTH)
 		.pattern(SAFE_STACK_PATTERN)
 		.default(DEFAULT_SANS)
-		.description("CSS font-family list for the conversation and the UI"),
+		.description("CSS font-family list for the conversation and the UI")
+		.volatile(),
 	[MONO_FIELD]: z
 		.string()
 		.max(MAX_STACK_LENGTH)
 		.pattern(SAFE_STACK_PATTERN)
 		.default(DEFAULT_MONO)
-		.description("CSS font-family list for code and monospaced text"),
+		.description("CSS font-family list for code and monospaced text")
+		.volatile(),
 });
 
 /**
@@ -56,27 +79,36 @@ interface StyleInjection {
 }
 
 /**
- * 設定サービスが公開する登録面
+ * 設定サービスが公開する面
  */
-interface SettingsInstaller {
+interface SettingsForms {
 	/**
-	 * 構成側の既定値を持つ設定セクションを登録する
-	 * @param owner - 登録する側のコンテキスト
-	 * @param namespace - 登録する namespace
-	 * @param schema - セクションを解決するスキーマ
-	 * @param entry - base 層かつ設定サービスが無い場合の値
-	 * @param hooks - 現在値の取得口と変更通知
+	 * 呼び出したプラグインが自前の設定面を持つことを伝える
+	 *
+	 * 自前の面がある場合はスキーマからの自動生成を止める 呼び出しごとに1つだけ登録でき
+	 * 二重に呼ぶと例外になる
+	 * @param presentation - 自動生成するかの指定
+	 * @param owner - この面を持つプラグインの実体
+	 * @returns 登録を解除する関数
 	 */
-	installSection(
-		owner: HostContext,
-		namespace: string,
-		schema: unknown,
-		entry: FontSettings,
-		hooks: {
-			setSource(current: () => FontSettings): void;
-			onChange(): void;
-		},
-	): void;
+	configure(presentation: { auto?: boolean }, owner?: unknown): () => void;
+}
+
+/**
+ * 設定サービスが現れた時の子コンテキスト
+ */
+interface HostSettingsContext {
+	/**
+	 * 設定サービス
+	 */
+	readonly settings: SettingsForms;
+
+	/**
+	 * プラグインの寿命に紐づけて副作用を登録する
+	 * @param callback - 登録する副作用 返した関数は破棄時に呼ばれる
+	 * @param label - 診断用の名前
+	 */
+	effect(callback: () => (() => void) | undefined, label?: string): void;
 }
 
 /**
@@ -90,13 +122,13 @@ interface HostContext {
 	 */
 	inject(
 		names: readonly string[],
-		callback: (ctx: HostContext & { settings: SettingsInstaller }) => void,
+		callback: (ctx: HostSettingsContext) => void,
 	): void;
 
 	/**
-	 * 解決済みのサービスを取り出す 未提供なら undefined
+	 * このプラグインの実体 設定の面を自分のものとして登録するために渡す
 	 */
-	get(name: string): unknown;
+	readonly fiber: unknown;
 
 	/**
 	 * イベントを購読する
@@ -107,14 +139,17 @@ interface HostContext {
 }
 
 /**
- * プラグインの現在のフォント設定を読む
+ * 現在のフォント設定を読む
  *
- * 値は index を配るたびに読む ここで固定するとプロセスの寿命だけ古い値が残る
- * @param current - 現在値を返す関数
+ * 値は index を配るたびに読む ここで固定すると保存された変更が次の描画へ届かない
+ * @param config - 生きた参照を持つプラグインの設定
  * @returns 適用するフォントスタック
  */
-function readSettings(current: () => FontSettings): FontSettings {
-	return readFontSettings(current());
+function readSettings(config: Config): FontSettings {
+	return readFontSettings({
+		[MONO_FIELD]: config[MONO_FIELD].get(),
+		[SANS_FIELD]: config[SANS_FIELD].get(),
+	});
 }
 
 /**
@@ -129,22 +164,19 @@ function fontStyleInjection(settings: FontSettings): StyleInjection {
 }
 
 /**
- * フォント設定を登録し 初回描画用のスタイルを配る
+ * フォント設定を設定文書へ公開し 初回描画用のスタイルを配る
  * @param ctx - ホスト側 cordis コンテキスト
- * @param config - プラグインの config 既定値が入った設定
+ * @param config - プラグインの設定
  */
-export function apply(ctx: HostContext, config: FontSettings): void {
-	let current: () => FontSettings = () => config;
+export function apply(ctx: HostContext, config: Config): void {
+	// 面はブラウザ側が自前で出すため スキーマからの自動生成は止める
 	ctx.inject(["settings"], (settingsCtx) => {
-		settingsCtx.settings.installSection(ctx, NAMESPACE, Config, config, {
-			setSource: (source) => {
-				current = source;
-			},
-			// 差し込む行は index を配るたびに読み直すため通知は要らない
-			onChange: () => {},
-		});
+		settingsCtx.effect(
+			() => settingsCtx.settings.configure({ auto: false }, ctx.fiber),
+			"dsh-ui-font: settings form policy",
+		);
 	});
 	ctx.on("webserver/index-inject", (table) => {
-		table.push(fontStyleInjection(readSettings(current)));
+		table.push(fontStyleInjection(readSettings(config)));
 	});
 }

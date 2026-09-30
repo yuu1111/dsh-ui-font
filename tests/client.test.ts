@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import manifest from "../package.json";
+import { DEFAULT_MONO } from "../src/shared";
 
 /**
  * バンドルが公開するプラグイン面
@@ -62,9 +63,9 @@ interface FakeTag {
 }
 
 /**
- * 設定 namespace を購読するハンドルのスタブ
+ * 1つのプラグイン行の設定を読み書きするハンドルのスタブ
  */
-interface FakeScope {
+interface FakeForm {
 	snapshot: { status: string; value: unknown; revision: number | undefined };
 	readonly written: [string, unknown][];
 	getSnapshot(): {
@@ -72,7 +73,7 @@ interface FakeScope {
 		value: unknown;
 		revision: number | undefined;
 	};
-	set(field: string, value: unknown): Promise<void>;
+	set(field: string, value: unknown): Promise<boolean>;
 	subscribe(listener: () => void): () => void;
 	emit(): void;
 }
@@ -228,12 +229,19 @@ function createRequire(hooks: ReturnType<typeof createHooks>) {
 				return { defineStore: (spec: unknown) => ({ spec }) };
 			case "@deepseek-ai/dsh-client-ui-primitives":
 				return {
-					IconCheckOutline14: createIcon("IconCheckOutline14"),
-					IconChevronLeftOutline14: createIcon("IconChevronLeftOutline14"),
-					IconChevronRightOutline14: createIcon("IconChevronRightOutline14"),
-					IconCloseFill14: createIcon("IconCloseFill14"),
-					IconPlusOutline16: createIcon("IconPlusOutline16"),
-					IconSearchOutline16: createIcon("IconSearchOutline16"),
+					Button(props: Record<string, unknown>) {
+						return { props, type: "Button" };
+					},
+					IconCheckOutlineRegular: createIcon("IconCheckOutlineRegular"),
+					IconChevronLeftOutlineRegular: createIcon(
+						"IconChevronLeftOutlineRegular",
+					),
+					IconChevronRightOutlineRegular: createIcon(
+						"IconChevronRightOutlineRegular",
+					),
+					IconCloseFillRegular: createIcon("IconCloseFillRegular"),
+					IconPlusOutlineRegular: createIcon("IconPlusOutlineRegular"),
+					IconSearchOutlineRegular: createIcon("IconSearchOutlineRegular"),
 					Input(props: Record<string, unknown>) {
 						return { props, type: "Input" };
 					},
@@ -264,17 +272,17 @@ function loadPluginFace(): {
 /**
  * 保存済みの値を返す購読ハンドルを作る
  */
-function createScope(value: unknown, revision = 1): FakeScope {
+function createForm(value: unknown, revision = 1): FakeForm {
 	let listener: (() => void) | undefined;
-	const scope: FakeScope = {
+	const form: FakeForm = {
 		snapshot: { status: "ready", value, revision },
 		written: [],
 		getSnapshot() {
-			return scope.snapshot;
+			return form.snapshot;
 		},
 		set(field, next) {
-			scope.written.push([field, next]);
-			return Promise.resolve();
+			form.written.push([field, next]);
+			return Promise.resolve(true);
 		},
 		subscribe(next) {
 			listener = next;
@@ -286,7 +294,7 @@ function createScope(value: unknown, revision = 1): FakeScope {
 			listener?.();
 		},
 	};
-	return scope;
+	return form;
 }
 
 /**
@@ -298,11 +306,8 @@ function createClient(value: unknown) {
 		configurable: true,
 		value: document,
 	});
-	const scope = createScope(value);
-	let spec: {
-		namespace: string;
-		decode?: (section: unknown) => unknown;
-	} = { namespace: "" };
+	const form = createForm(value);
+	const asked: string[] = [];
 	const rows: { options: RowOptions; component: (props: unknown) => Node }[] =
 		[];
 	const dictionaries: unknown[][] = [];
@@ -310,10 +315,10 @@ function createClient(value: unknown) {
 	const disposers: (() => void)[] = [];
 	const events: string[] = [];
 	const ctx = {
-		settingsScope: {
-			bind(next: typeof spec) {
-				spec = next;
-				return scope;
+		configForms: {
+			get(namespace: string) {
+				asked.push(namespace);
+				return form;
 			},
 		},
 		slots: {
@@ -342,15 +347,15 @@ function createClient(value: unknown) {
 	const loaded = loadPluginFace();
 	loaded.face.apply(ctx);
 	return {
+		asked,
 		dictionaries,
 		disposers,
 		document,
 		effects,
 		events,
+		form,
 		hooks: loaded.hooks,
 		rows,
-		scope,
-		spec,
 	};
 }
 
@@ -394,26 +399,20 @@ describe("ビルド済みクライアントバンドル", () => {
 
 	test("Cordis が読むプラグイン面を公開する", () => {
 		const { face } = loadPluginFace();
-		expect(face.inject).toEqual(["slots", "locale", "settingsScope"]);
+		expect(face.inject).toEqual(["slots", "locale", "configForms"]);
 		expect(typeof face.apply).toBe("function");
 	});
 });
 
 describe("apply", () => {
 	test("設定 namespace を購読し スタイルタグ1枚でフォントを当てる", () => {
-		const { document, rows, scope, spec } = createClient({
+		const { asked, document, form, rows } = createClient({
 			sans: '"Test Sans", sans-serif',
 			mono: '"Test Mono", monospace',
 		});
 
-		expect(spec.namespace).toBe("ui-font");
-		expect(spec.decode?.({ sans: "a", mono: "b" })).toEqual({
-			sans: "a",
-			mono: "b",
-		});
-		expect(spec.decode?.(undefined)).toMatchObject({
-			mono: expect.any(String),
-		});
+		// 面の名前はプロファイルのプラグイン行の id そのもの
+		expect(asked).toEqual(["ui-font"]);
 		expect(rows.map((row) => row.options.id)).toEqual([
 			"dsh-ui-font-sans",
 			"dsh-ui-font-mono",
@@ -444,33 +443,33 @@ describe("apply", () => {
 		expect(tag?.textContent).toContain("!important");
 
 		// 値が届く前はホスト側が差し込んだタグをそのまま使う
-		scope.snapshot = {
+		form.snapshot = {
 			status: "loading",
 			value: undefined,
 			revision: undefined,
 		};
-		scope.emit();
+		form.emit();
 		expect(fontTags()).toHaveLength(1);
 		expect(fontTags()[0]?.textContent).toContain('"Test Sans", sans-serif');
 	});
 
 	test("同じ値ではタグを増やさず 変わった値だけを書き換える", () => {
-		const { document, scope } = createClient({ sans: "A", mono: "B" });
+		const { document, form } = createClient({ sans: "A", mono: "B" });
 		const fontTags = () =>
 			document.tags.filter(
 				(tag) => tag.dataset.pluginCss === "dsh-ui-font/font-family.css",
 			);
 		expect(fontTags()).toHaveLength(1);
 
-		scope.emit();
+		form.emit();
 		expect(fontTags()).toHaveLength(1);
 
-		scope.snapshot = {
+		form.snapshot = {
 			status: "ready",
 			value: { sans: "Next Sans", mono: "Next Mono" },
 			revision: 2,
 		};
-		scope.emit();
+		form.emit();
 
 		expect(fontTags()).toHaveLength(1);
 		expect(fontTags()[0]?.textContent).toContain("Next Sans");
@@ -509,10 +508,22 @@ describe("apply", () => {
 	});
 
 	test("行の保存は設定へ書き戻す", () => {
-		const { rows, scope } = createClient({ sans: "A", mono: "B" });
+		const { form, rows } = createClient({ sans: "A", mono: "B" });
 		const injected = rows[1]?.options.inject({ sync: () => {} });
 		injected?.save("Saved Mono");
-		expect(scope.written).toEqual([["mono", "Saved Mono"]]);
+		expect(form.written).toEqual([["mono", "Saved Mono"]]);
+	});
+
+	test("壊れた保存値は既定値へ寄せてから当てる", () => {
+		const { document } = createClient({ sans: "Bad} Sans", mono: "" });
+		const tag = document.tags.find(
+			(current) => current.dataset.pluginCss === "dsh-ui-font/font-family.css",
+		);
+		const css = tag?.textContent ?? "";
+
+		expect(css).not.toContain("Bad}");
+		expect(css).toContain("Bad Sans");
+		expect(css).toContain(DEFAULT_MONO);
 	});
 
 	test("浮いた面と中身の幅は枠の内側で測る", () => {
@@ -536,6 +547,23 @@ describe("apply", () => {
 		]) {
 			expect(declarations(name)).toContain("box-sizing:border-box");
 		}
+	});
+
+	test("浮いた一覧は組み込みのメニュー面の寸法と色を使う", () => {
+		const { document } = createClient({ sans: "A", mono: "B" });
+		const tag = document.tags.find(
+			(current) => current.dataset.pluginCss === "dsh-ui-font/settings-row.css",
+		);
+		const css = tag?.textContent ?? "";
+
+		// 組み込みのメニューと同じ面 影 行の寸法を使う
+		expect(css).toContain("background:var(--dsw-specific-menu)");
+		expect(css).toContain("box-shadow:var(--dsw-elevation-prominent)");
+		expect(css).toContain("border-radius:20px");
+		expect(css).toContain("min-height:38px");
+
+		// DSH に無い一段の名前は書いても効かないため使わない
+		expect(css).not.toMatch(/--dsw-alias-bg-l[0-9]/);
 	});
 });
 

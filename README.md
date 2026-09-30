@@ -13,7 +13,7 @@ The DSH Web GUI exposes the colour scheme and the conversation font size in **Se
 | `--dsw-font-family` | body text and UI chrome | `-apple-system, BlinkMacSystemFont, "Segoe UI", ...` |
 | `--dsw-font-mono`, `--ds-font-family-code` | code blocks and monospace UI | `"SF Mono", "JetBrains Mono", "Fira Code", Consolas, ...` |
 
-This plugin adds two rows to that settings page, stores the chosen stacks in `$DSH_HOME/settings.yaml`, and applies them without touching any file inside the DSH installation (an npm update cannot revert them).
+This plugin adds two rows to that settings page, stores the chosen stacks in its own profile entry, and applies them without touching any file inside the DSH installation (an npm update cannot revert them).
 
 ## Install
 
@@ -41,15 +41,17 @@ Open **Settings → General**. Each row lists the saved families as ordered chip
 
 Each chip carries three buttons: move earlier, move later, and remove. The order is the fallback order, so keep a CJK-capable family after the Latin one. Every change saves immediately, and an unchanged stack writes nothing.
 
-The stored value is still a plain CSS `font-family` list, so a hand edit works too. Braces, semicolons, and angle brackets are sanitised away, because the value is interpolated into a stylesheet. Only the fields you change are written; the rest keep the shipped defaults:
+The stored value is still a plain CSS `font-family` list, so a hand edit works too. Braces, semicolons, and angle brackets are sanitised away, because the value is interpolated into a stylesheet. The two fields are declared `volatile()` in the plugin's schema, which is what makes them editable; a write lands in this plugin's entry inside the active profile patch, and only the fields you change are written:
 
 ```yaml
-# $DSH_HOME/settings.yaml
-ui-font:
-  sans: '"JetBrains Mono", "BIZ UDPGothic", "Noto Sans JP", sans-serif'
+# $DSH_HOME/profiles/<profile>/cordis.patch.yml
+- id: ui-font
+  name: dsh-ui-font
+  config:
+    sans: '"JetBrains Mono", "BIZ UDPGothic", "Noto Sans JP", sans-serif'
 ```
 
-The running server watches that file, so a hand edit applies on the next page reload. The shipped defaults have no `ui-font` section at all:
+The entry id doubles as the settings namespace the browser half reads, so it must stay `ui-font`. Nothing is stored at all until you change a field, and the schema defaults cover a config that omits one:
 
 | Setting | Shipped default |
 | --- | --- |
@@ -64,7 +66,7 @@ A profile can also set the plugin's Loader `config:`, which becomes the base lay
 
 | Path | Role |
 | --- | --- |
-| `src/index.ts` | Host half: registers the `ui-font` settings section and injects the saved stacks into the served index |
+| `src/index.ts` | Host half: declares the two font stacks as volatile config and injects the saved stacks into the served index |
 | `src/client.tsx` | Browser half: applies the stylesheet and registers the two settings rows, including the picker |
 | `src/shared.ts` | Values shared by both halves: namespace, defaults, sanitising, stack parsing and formatting, and the stylesheet builder |
 | `build.ts` | Bun build: host half as ESM, browser half as CJS wrapped in the module-loader format |
@@ -75,9 +77,10 @@ A profile can also set the plugin's Loader `config:`, which becomes the base lay
 
 ## How it works
 
-- The host half calls `settings.installSection(ctx, "ui-font", Config, config, hooks)` inside `ctx.inject(["settings"], ...)`. The plugin's Loader `config:` becomes the base layer, the saved `settings.yaml` section overrides it, and the schema defaults cover a config that omits a field.
-- The host half also pushes one `{ kind: "style" }` row on `webserver/index-inject`. Rows are collected on every index render and placed directly after `<head>`, so the saved stacks are in effect for the first paint and a hand edit to `settings.yaml` shows up on the next reload without a restart.
-- The browser half declares `inject: ["slots", "locale", "settingsScope"]`, binds the `ui-font` namespace with `settingsScope.bind()`, and keeps one `style[data-plugin-css="dsh-ui-font/font-family.css"]` tag in sync with the snapshot. Only one authority writes the tokens: both halves emit the same `:root,body{... !important}` declarations, and the tag the browser half appends later wins on equal specificity while the host row covers the window before the client loads.
+- The host half declares both stacks with `.volatile()`, so the settings domain projects them as an editable entry keyed by the profile row id (`ui-font`). Values are live references: `apply()` reads `config.sans.get()` / `config.mono.get()`, so a write is visible without re-resolving the config.
+- The host half calls `settings.configure({ auto: false }, ctx.fiber)` inside `ctx.inject(["settings"], ...)`, because the browser half ships its own row UI and an auto-generated page would duplicate it.
+- The host half also pushes one `{ kind: "style" }` row on `webserver/index-inject`. Rows are collected on every index render and placed directly after `<head>`, so the saved stacks are in effect for the first paint, before the browser half has loaded.
+- The browser half declares `inject: ["slots", "locale", "configForms"]`, reads the entry with `configForms.get("ui-font")`, and keeps one `style[data-plugin-css="dsh-ui-font/font-family.css"]` tag in sync with the snapshot. Only one authority writes the tokens: both halves emit the same `:root,body{... !important}` declarations, and the tag the browser half appends later wins on equal specificity while the host row covers the window before the client loads.
 - The rows register into the `settings.general.item` slot with `id: "dsh-ui-font-sans"` / `"dsh-ui-font-mono"` and `order: 70` / `71`, so they sit after the built-in appearance and font-size rows. The browser half ships `en`, `zh`, and `ja` dictionaries; other locales fall back to English.
 - A row parses the stored stack into families, shows them as chips, and re-formats them with `formatFontStack()` before every save, so what the settings file holds stays a round-trippable CSS list. The picker reads installed families once per row mount with `globalThis.queryLocalFonts()`; a missing API, an empty result, or a rejected permission request falls back to a bundled list rather than leaving the row unusable.
 - `!important` is required because the ui-layout presenter writes the resolved tokens onto `document.body` as inline custom properties, which outrank a plain `:root` declaration for every descendant.
@@ -110,9 +113,10 @@ Bump `version`, commit, then publish a GitHub Release for the matching tag (`v1.
 
 ## Verified with
 
-- DSH `0.1.5-rc.2` (`@deepseek-ai/dsh-client-ui-settings` `0.1.5-rc.2`), Windows 11 / Chromium
-- `bun test`: module id, exported plugin face, settings section registration, index style row, live source switch, scope binding, stylesheet updates, row registration, stack parsing and formatting, the picker paths (installed list, fallback, refused access, free-text add), chip removal and reordering
-- Real browser check: the served index carries the `<style>` row with the configured stacks, **Settings → General** shows both rows with the stored families as chips, the picker lists the installed fonts of this machine (174 families) and filters them by search, adding a family appends it to the stack and updates the computed body font without a reload, removing it restores the previous stack, reordering moves the family, and each change lands in `$DSH_HOME/settings.yaml` with no console errors
+- DSH `0.2.0-rc.2` (`@deepseek-ai/dsh-client-ui-settings` `0.2.0-rc.2`), Windows 11 / Chromium
+- DSH's own plugin compatibility rule accepts this manifest, evaluated with the identical `semver.satisfies(runtime, range, { includePrerelease: true })` test `dsh-app-boot` applies to every `@deepseek-ai/dsh-*` peer
+- `bun test`: module id, exported plugin face, the `configForms` entry read, the settings form policy, the volatile value read, index style row, stylesheet updates, row registration, stack parsing and formatting, the picker paths (installed list, fallback, refused access, free-text add), chip removal and reordering
+- `bun run check:quality`: Biome, TypeScript, Knip, and the code, comment, document, and TSDoc checkers
 
 ## License
 

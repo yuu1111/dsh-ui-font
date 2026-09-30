@@ -1,8 +1,10 @@
 # dsh-ui-font layer.
 #
-# Adds one plugin row. The host half registers the `ui-font` settings section
-# and injects the saved stacks into the served index; the browser half applies
-# them and adds the two rows to Settings -> General.
+# Adds one plugin row. The row id doubles as the settings namespace the browser
+# half reads through `configForms`, so it must stay `ui-font`. The host half
+# exposes the two font stacks as volatile config fields and injects the saved
+# stacks into the served index; the browser half applies them and adds the two
+# rows to Settings -> General.
 #
 # A profile can set the base layer here. Saved values still win over it, and a
 # field left out falls back to the schema default:

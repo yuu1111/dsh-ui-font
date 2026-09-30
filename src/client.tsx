@@ -10,12 +10,13 @@
 
 import { defineStore } from "@deepseek-ai/dsh-client-store";
 import {
-	IconCheckOutline14,
-	IconChevronLeftOutline14,
-	IconChevronRightOutline14,
-	IconCloseFill14,
-	IconPlusOutline16,
-	IconSearchOutline16,
+	Button,
+	IconCheckOutlineRegular,
+	IconChevronLeftOutlineRegular,
+	IconChevronRightOutlineRegular,
+	IconCloseFillRegular,
+	IconPlusOutlineRegular,
+	IconSearchOutlineRegular,
 	Input,
 	useAnchoredPosition,
 	useDismissOnOutsidePointer,
@@ -56,22 +57,26 @@ interface ScopeSnapshot {
 }
 
 /**
- * 1つの namespace を購読するハンドル
+ * 1つの設定 namespace を読み書きするハンドル
+ *
+ * 名前空間はプロファイルのプラグイン行の id そのもの
  */
-interface SettingsScope {
+interface SettingsForm {
 	getSnapshot(): ScopeSnapshot;
 	subscribe(listener: () => void): () => void;
-	set(field: string, value: unknown): Promise<void>;
+	set(field: string, value: unknown): Promise<boolean>;
 }
 
 /**
- * 設定 namespace を購読するサービス
+ * 設定 namespace を読むサービス
  */
-interface SettingsScopeBinder {
-	bind(spec: {
-		namespace: string;
-		decode?: (section: unknown) => FontSettings;
-	}): SettingsScope;
+interface ConfigFormsService {
+	/**
+	 * 1つのプラグイン行の設定を読む 同じ id には同じハンドルが返る
+	 * @param namespace - 読むプラグイン行の id
+	 * @returns その行の設定を読み書きするハンドル
+	 */
+	get(namespace: string): SettingsForm;
 }
 
 /**
@@ -151,7 +156,7 @@ interface LocaleService {
 interface ClientContext {
 	readonly slots: SlotsService;
 	readonly locale: LocaleService;
-	readonly settingsScope: SettingsScopeBinder;
+	readonly configForms: ConfigFormsService;
 	readonly logger?: { warn?(...args: unknown[]): void };
 
 	/**
@@ -191,32 +196,38 @@ interface FontOption {
  * 枠組みは全体へ border-box を当てていないため 幅や高さと内側の余白を持つ面は
  * 自分で指定しないと 余白と枠の分だけ外へ広がる 浮いた面と幅100%の部品には
  * border-box を明示する 既存の Menu と HoverCard も同じ理由で自前で持っている
+ *
+ * 浮いた一覧は DSH のメニュー面の寸法と色へ揃える 角丸20 内側の余白4 面は
+ * --dsw-specific-menu 影は --dsw-elevation-prominent 行は最小38の角丸10 とし
+ * ここで決め直した値が組み込みのメニューと食い違わないようにする 押せる面は
+ * プリミティブの Button へ任せ 自前の規則には寸法だけを残す 塗りは
+ * --dsw-alias-interactive-bg-hover のように DSH に実在する名前だけを使う チップは
+ * 同じ行に並ぶ FontSizeRow のステッパーと同じ面の名前を使う 設定の面は
+ * --dsw-alias-bg-layer-2 なので 同じ名前を塗りにすると見えなくなる
  */
 const ROW_CSS = [
 	`.${STYLE_TAG_MARKER}-row{align-items:center;gap:8px;padding:16px 0;display:flex;border-bottom:.5px solid var(--dsw-alias-border-l2)}`,
-	`.${STYLE_TAG_MARKER}-rowText{flex-direction:column;flex:1;gap:4px;min-width:0;padding-right:24px;display:flex}`,
+	`.${STYLE_TAG_MARKER}-rowText{flex-direction:column;flex:1;gap:4px;min-width:0;padding-right:48px;display:flex}`,
 	`.${STYLE_TAG_MARKER}-title{color:var(--dsw-alias-label-primary);font-size:14px;font-weight:400;line-height:22px}`,
 	`.${STYLE_TAG_MARKER}-desc{color:var(--dsw-alias-label-tertiary);font-size:12px;font-weight:400;line-height:18px}`,
 	`.${STYLE_TAG_MARKER}-chips{align-items:center;flex-wrap:wrap;gap:4px;display:flex}`,
-	`.${STYLE_TAG_MARKER}-chip{align-items:center;gap:2px;height:24px;padding:0 2px 0 8px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-l2);border:.5px solid var(--dsw-alias-border-l3);border-radius:6px;display:inline-flex}`,
+	`.${STYLE_TAG_MARKER}-chip{align-items:center;gap:2px;height:24px;padding:0 4px 0 8px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-module-platform);border:none;border-radius:12px;display:inline-flex}`,
 	`.${STYLE_TAG_MARKER}-chipLabel{max-width:200px;font-size:12px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`,
-	`.${STYLE_TAG_MARKER}-chipButton{align-items:center;justify-content:center;width:20px;height:20px;padding:0;color:var(--dsw-alias-label-tertiary);cursor:pointer;background:0 0;border:none;border-radius:4px;display:inline-flex}`,
-	`.${STYLE_TAG_MARKER}-chipButton:hover:not(:disabled){color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-l3)}`,
+	`.${STYLE_TAG_MARKER}-chipButton{align-items:center;justify-content:center;width:20px;height:20px;padding:0;color:var(--dsw-alias-label-tertiary);cursor:pointer;background:0 0;border:none;border-radius:999px;display:inline-flex}`,
+	`.${STYLE_TAG_MARKER}-chipButton:hover:not(:disabled){color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}`,
 	`.${STYLE_TAG_MARKER}-chipButton:disabled{opacity:.35;cursor:default}`,
 	`.${STYLE_TAG_MARKER}-empty{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}`,
 	`.${STYLE_TAG_MARKER}-preview{color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`,
 	`.${STYLE_TAG_MARKER}-control{align-items:center;flex:none;display:inline-flex}`,
-	`.${STYLE_TAG_MARKER}-add{align-items:center;gap:6px;height:28px;padding:0 10px;color:var(--dsw-alias-label-primary);cursor:pointer;background:var(--dsw-alias-bg-l2);border:.5px solid var(--dsw-alias-border-l3);border-radius:6px;display:inline-flex;font-size:13px;line-height:18px}`,
-	`.${STYLE_TAG_MARKER}-add:hover{background:var(--dsw-alias-bg-l3)}`,
-	`.${STYLE_TAG_MARKER}-panel{box-sizing:border-box;position:fixed;z-index:40;flex-direction:column;width:300px;max-height:360px;padding:8px;background:var(--dsw-alias-bg-base);border:.5px solid var(--dsw-alias-border-l3);border-radius:8px;box-shadow:0 8px 24px #0003;display:flex}`,
-	`.${STYLE_TAG_MARKER}-note{padding:4px 2px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:16px}`,
-	`.${STYLE_TAG_MARKER}-list{flex-direction:column;gap:2px;flex:1;min-height:0;overflow-y:auto;display:flex}`,
-	`.${STYLE_TAG_MARKER}-option{align-items:center;justify-content:space-between;gap:8px;width:100%;box-sizing:border-box;padding:4px 8px;color:var(--dsw-alias-label-primary);text-align:left;cursor:pointer;background:0 0;border:none;border-radius:4px;display:flex;font-size:13px;line-height:20px}`,
-	`.${STYLE_TAG_MARKER}-option:hover{background:var(--dsw-alias-bg-l2)}`,
-	`.${STYLE_TAG_MARKER}-optionSelected{background:var(--dsw-alias-bg-l2)}`,
-	`.${STYLE_TAG_MARKER}-optionLabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`,
-	`.${STYLE_TAG_MARKER}-footer{justify-content:flex-end;padding-top:6px;display:flex}`,
-	`.${STYLE_TAG_MARKER}-done{height:26px;padding:0 10px;color:var(--dsw-alias-label-primary);cursor:pointer;background:var(--dsw-alias-bg-l2);border:.5px solid var(--dsw-alias-border-l3);border-radius:6px;font-size:12px}`,
+	`.${STYLE_TAG_MARKER}-add{flex:none}`,
+	`.${STYLE_TAG_MARKER}-panel{box-sizing:border-box;position:fixed;z-index:1100;flex-direction:column;width:min(320px,100vw - 32px);max-height:min(360px,100vh - 96px);padding:4px;background:var(--dsw-specific-menu);color:var(--dsw-alias-label-primary);border:0;border-radius:20px;box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);display:flex;overflow:hidden}`,
+	`.${STYLE_TAG_MARKER}-note{padding:10px;color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:20px}`,
+	`.${STYLE_TAG_MARKER}-list{flex-direction:column;flex:1;min-height:0;overflow-y:auto;display:flex}`,
+	`.${STYLE_TAG_MARKER}-option{align-items:center;gap:8px;box-sizing:border-box;min-width:100%;min-height:38px;padding:6px 8px;color:var(--dsw-alias-label-primary);text-align:left;cursor:pointer;background:0 0;border:none;border-radius:10px;display:flex;font-size:14px;line-height:22px}`,
+	`.${STYLE_TAG_MARKER}-option:hover:not(:disabled),.${STYLE_TAG_MARKER}-option:focus-visible{background:var(--dsw-alias-interactive-bg-hover)}`,
+	`.${STYLE_TAG_MARKER}-optionLabel{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`,
+	`.${STYLE_TAG_MARKER}-optionCheck{flex:0 0 18px;color:var(--dsw-alias-label-primary);place-items:center;display:grid}`,
+	`.${STYLE_TAG_MARKER}-footer{flex:none;align-items:center;justify-content:flex-end;gap:8px;margin-top:4px;padding-top:4px;border-top:.5px solid var(--dsw-alias-border-l2);display:flex}`,
 	`.${STYLE_TAG_MARKER}-search{width:100%;box-sizing:border-box}`,
 ].join("");
 
@@ -621,7 +632,7 @@ function createFontRow(
 										commit(moveFamily(families, index, -1));
 									}}
 								>
-									<IconChevronLeftOutline14 />
+									<IconChevronLeftOutlineRegular />
 								</button>
 								<button
 									type="button"
@@ -632,7 +643,7 @@ function createFontRow(
 										commit(moveFamily(families, index, 1));
 									}}
 								>
-									<IconChevronRightOutline14 />
+									<IconChevronRightOutlineRegular />
 								</button>
 								<button
 									type="button"
@@ -642,7 +653,7 @@ function createFontRow(
 										commit(families.filter((current) => current !== family));
 									}}
 								>
-									<IconCloseFill14 />
+									<IconCloseFillRegular />
 								</button>
 							</span>
 						))}
@@ -655,9 +666,11 @@ function createFontRow(
 					</div>
 				</div>
 				<div className={`${STYLE_TAG_MARKER}-control`} ref={anchorRef}>
-					<button
-						type="button"
+					<Button
 						className={`${STYLE_TAG_MARKER}-add`}
+						icon={<IconPlusOutlineRegular />}
+						size="sm"
+						variant="ghost"
 						aria-expanded={open}
 						aria-haspopup="listbox"
 						onClick={() => {
@@ -665,9 +678,8 @@ function createFontRow(
 							setOpen(!open);
 						}}
 					>
-						<IconPlusOutline16 />
-						<span>{props.t("stack.add")}</span>
-					</button>
+						{props.t("stack.add")}
+					</Button>
 				</div>
 				{open ? (
 					<div
@@ -685,7 +697,7 @@ function createFontRow(
 						<Input
 							aria-label={props.t("stack.search")}
 							className={`${STYLE_TAG_MARKER}-search`}
-							icon={<IconSearchOutline16 />}
+							icon={<IconSearchOutlineRegular />}
 							placeholder={props.t("stack.search")}
 							spellCheck={false}
 							value={query}
@@ -715,33 +727,39 @@ function createFontRow(
 									key={option.key}
 									role="option"
 									aria-selected={option.selected}
-									className={`${STYLE_TAG_MARKER}-option${option.selected ? ` ${STYLE_TAG_MARKER}-optionSelected` : ""}`}
-									style={
-										option.custom
-											? undefined
-											: { fontFamily: quoteFamily(option.label) }
-									}
+									className={`${STYLE_TAG_MARKER}-option`}
 									onClick={() => {
 										toggle(option);
 									}}
 								>
-									<span className={`${STYLE_TAG_MARKER}-optionLabel`}>
+									<span
+										className={`${STYLE_TAG_MARKER}-optionLabel`}
+										style={
+											option.custom
+												? undefined
+												: { fontFamily: quoteFamily(option.label) }
+										}
+									>
 										{option.label}
 									</span>
-									{option.selected ? <IconCheckOutline14 /> : null}
+									{option.selected ? (
+										<span className={`${STYLE_TAG_MARKER}-optionCheck`}>
+											<IconCheckOutlineRegular />
+										</span>
+									) : null}
 								</button>
 							))}
 						</div>
 						<div className={`${STYLE_TAG_MARKER}-footer`}>
-							<button
-								type="button"
-								className={`${STYLE_TAG_MARKER}-done`}
+							<Button
+								size="sm"
+								variant="outline"
 								onClick={() => {
 									setOpen(false);
 								}}
 							>
 								{props.t("stack.done")}
-							</button>
+							</Button>
 						</div>
 					</div>
 				) : null}
@@ -754,8 +772,11 @@ function createFontRow(
 
 /**
  * このプラグインが使うサービス
+ *
+ * 設定の読み書きは設定の面を持つ `configForms` を通す 別のプラグインの名前空間を
+ * 辿る場合と違い `remote` は要らない 購読は面を持つ側が張る
  */
-export const inject = ["slots", "locale", "settingsScope"];
+export const inject = ["slots", "locale", "configForms"];
 
 /**
  * 保存済みのフォントを当て 設定 → 一般 の行から書き換えられるようにする
@@ -764,10 +785,8 @@ export const inject = ["slots", "locale", "settingsScope"];
 export function apply(ctx: ClientContext): void {
 	installRowStyles(ctx);
 	const stylesheet = createStylesheet();
-	const scope = ctx.settingsScope.bind({
-		namespace: NAMESPACE,
-		decode: readFontSettings,
-	});
+	// 面の名前はプロファイルのプラグイン行の id そのもの
+	const form = ctx.configForms.get(NAMESPACE);
 	const report = (error: unknown) => {
 		ctx.logger?.warn?.("dsh-ui-font: 設定を保存できませんでした", error);
 	};
@@ -778,9 +797,10 @@ export function apply(ctx: ClientContext): void {
 	// 実際に書けるのは枠組みが渡すアクションだけなので 登録時に受け取って保持する
 	const actions = new Map<string, RowActions>();
 	const sync = () => {
-		const snapshot = scope.getSnapshot();
-		const settings = snapshot.value;
-		if (settings === undefined) return;
+		const snapshot = form.getSnapshot();
+		// 最初の値が届くまではホスト側が差し込んだ宣言をそのまま使う
+		if (snapshot.value === undefined) return;
+		const settings = readFontSettings(snapshot.value);
 		stylesheet(settings);
 		for (const row of rows) {
 			actions
@@ -791,7 +811,7 @@ export function apply(ctx: ClientContext): void {
 				);
 		}
 	};
-	ctx.effect(() => scope.subscribe(sync), "dsh-ui-font: settings adoption");
+	ctx.effect(() => form.subscribe(sync), "dsh-ui-font: settings adoption");
 	sync();
 	ctx.effect(() => {
 		const disposers = [
@@ -816,7 +836,7 @@ export function apply(ctx: ClientContext): void {
 						sync();
 						return {
 							save: (value: string) => {
-								scope.set(row.field, value).catch(report);
+								form.set(row.field, value).catch(report);
 							},
 						};
 					},

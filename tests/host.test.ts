@@ -10,44 +10,71 @@ interface StyleRow {
 }
 
 /**
- * 登録された設定セクション
+ * 生きた設定値の参照
  */
-interface Installed {
-	readonly namespace: string;
-	readonly schema: ((value: unknown) => unknown) & { toJSON?: () => unknown };
-	readonly entry: { sans: string; mono: string };
-	readonly setSource: (current: () => { sans: string; mono: string }) => void;
-	readonly onChange: () => void;
+interface VolatileRef<T> {
+	get(): T;
 }
 
 /**
- * 設定サービスが現れた時のコンテキスト
+ * 解決済みの設定
  */
-interface HostSettingsContext {
-	readonly settings: {
-		installSection(
-			owner: unknown,
-			namespace: string,
-			schema: Installed["schema"],
-			entry: Installed["entry"],
-			hooks: { setSource: Installed["setSource"]; onChange: () => void },
-		): void;
+interface ResolvedConfig {
+	readonly sans: VolatileRef<string>;
+	readonly mono: VolatileRef<string>;
+}
+
+/**
+ * 書き換えられる生きた参照を作る
+ * @param initial - 最初に返す値
+ * @returns 値を差し替えられる参照
+ */
+function createRef(initial: string): VolatileRef<string> & {
+	set(value: string): void;
+} {
+	let current = initial;
+	return {
+		get: () => current,
+		set: (value) => {
+			current = value;
+		},
 	};
 }
 
 /**
- * テスト1件分のホスト実行環境を作る
+ * 設定サービスが現れた時の子コンテキスト
  */
-function createHost(config: { sans: string; mono: string }) {
-	const installed: Installed[] = [];
+interface HostSettingsContext {
+	readonly settings: {
+		configure(presentation: { auto?: boolean }, owner?: unknown): () => void;
+	};
+	effect(callback: () => (() => void) | undefined, label?: string): void;
+}
+
+/**
+ * 面の登録内容
+ */
+interface Configured {
+	readonly presentation: { auto?: boolean };
+	readonly owner: unknown;
+}
+
+/**
+ * テスト1件分のホスト実行環境を作る
+ * @param config - プラグインへ渡す生きた設定
+ */
+function createHost(config: ResolvedConfig) {
+	const configured: Configured[] = [];
+	const effects: string[] = [];
 	const listeners: ((table: StyleRow[]) => void)[] = [];
 	let callback: ((ctx: HostSettingsContext) => void) | undefined;
+	const fiber = { label: "test-fiber" };
 	const host = {
+		fiber,
 		inject(names: readonly string[], next: typeof callback) {
 			expect(names).toEqual(["settings"]);
 			callback = next;
 		},
-		get: () => undefined,
 		on(event: string, listener: (table: StyleRow[]) => void) {
 			expect(event).toBe("webserver/index-inject");
 			listeners.push(listener);
@@ -55,28 +82,21 @@ function createHost(config: { sans: string; mono: string }) {
 	};
 	return {
 		config,
+		configured,
+		effects,
 		host,
-		installed,
-		/** 設定サービスが現れた状態にして登録を走らせる */
+		/** 設定サービスが現れた状態にして副作用を走らせる */
 		attachSettings() {
 			callback?.({
 				settings: {
-					installSection: (
-						owner: unknown,
-						namespace: string,
-						schema: Installed["schema"],
-						entry: Installed["entry"],
-						hooks: { setSource: Installed["setSource"]; onChange: () => void },
-					) => {
-						expect(owner).toBe(host);
-						installed.push({
-							entry,
-							namespace,
-							onChange: hooks.onChange,
-							schema,
-							setSource: hooks.setSource,
-						});
+					configure: (presentation, owner) => {
+						configured.push({ owner, presentation });
+						return () => {};
 					},
+				},
+				effect: (register, label) => {
+					if (label !== undefined) effects.push(label);
+					register();
 				},
 			});
 		},
@@ -91,18 +111,17 @@ function createHost(config: { sans: string; mono: string }) {
 
 const moduleUrl = new URL("../lib/index.js", import.meta.url).href;
 const hostModule = (await import(moduleUrl)) as {
-	apply(ctx: unknown, config: { sans: string; mono: string }): void;
-	Config: ((value: unknown) => { sans: string; mono: string }) & {
+	apply(ctx: unknown, config: ResolvedConfig): void;
+	Config: ((value: unknown) => ResolvedConfig) & {
 		toJSON(): unknown;
 	};
 };
 
 describe("設定スキーマ", () => {
 	test("未設定なら同梱のフォントスタックを使う", () => {
-		expect(hostModule.Config({})).toEqual({
-			mono: DEFAULT_MONO,
-			sans: DEFAULT_SANS,
-		});
+		const resolved = hostModule.Config({});
+		expect(resolved.sans.get()).toBe(DEFAULT_SANS);
+		expect(resolved.mono.get()).toBe(DEFAULT_MONO);
 	});
 
 	test("スタイルシートを壊す文字を弾く", () => {
@@ -116,21 +135,25 @@ describe("設定スキーマ", () => {
 });
 
 describe("apply", () => {
-	test("設定セクションを構成側の既定値つきで登録する", () => {
-		const client = createHost({ mono: "Config Mono", sans: "Config Sans" });
+	test("自前の設定面を出すため 自動生成の面を止める", () => {
+		const client = createHost({
+			mono: createRef("Config Mono"),
+			sans: createRef("Config Sans"),
+		});
 		hostModule.apply(client.host, client.config);
 		client.attachSettings();
 
-		expect(client.installed).toHaveLength(1);
-		const [installed] = client.installed;
-		expect(installed?.namespace).toBe("ui-font");
-		expect(installed?.entry).toEqual(client.config);
-		expect(typeof installed?.schema).toBe("function");
-		expect(typeof installed?.setSource).toBe("function");
+		expect(client.configured).toHaveLength(1);
+		expect(client.configured[0]?.presentation).toEqual({ auto: false });
+		expect(client.configured[0]?.owner).toBe(client.host.fiber);
+		expect(client.effects).toContain("dsh-ui-font: settings form policy");
 	});
 
 	test("index へスタイル行を1つ差し込む", () => {
-		const client = createHost({ mono: "Config Mono", sans: "Config Sans" });
+		const client = createHost({
+			mono: createRef("Config Mono"),
+			sans: createRef("Config Sans"),
+		});
 		hostModule.apply(client.host, client.config);
 		const table = client.emit();
 
@@ -146,15 +169,14 @@ describe("apply", () => {
 		expect(row?.text).not.toContain("</style");
 	});
 
-	test("保存済みの値があればそちらを使う", () => {
-		const client = createHost({ mono: "Config Mono", sans: "Config Sans" });
+	test("保存済みの値は生きた参照から読む", () => {
+		const sans = createRef("Config Sans");
+		const mono = createRef("Config Mono");
+		const client = createHost({ mono, sans });
 		hostModule.apply(client.host, client.config);
-		client.attachSettings();
-		client.installed[0]?.setSource(() => ({
-			mono: "Saved Mono",
-			sans: "Saved Sans",
-		}));
 
+		sans.set("Saved Sans");
+		mono.set("Saved Mono");
 		const [row] = client.emit();
 		expect(row?.text).toContain("Saved Sans");
 		expect(row?.text).toContain("Saved Mono");
@@ -162,10 +184,11 @@ describe("apply", () => {
 	});
 
 	test("壊れた保存値は既定値へ寄せる", () => {
-		const client = createHost({ mono: "Config Mono", sans: "Config Sans" });
+		const client = createHost({
+			mono: createRef(""),
+			sans: createRef("Bad} Sans"),
+		});
 		hostModule.apply(client.host, client.config);
-		client.attachSettings();
-		client.installed[0]?.setSource(() => ({ mono: "", sans: "Bad} Sans" }));
 
 		const [row] = client.emit();
 		expect(row?.text).not.toContain("Bad}");

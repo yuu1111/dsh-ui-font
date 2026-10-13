@@ -73,6 +73,7 @@ export interface FontSettings {
  *
  * 設定値は利用者が書くため 波括弧やセミコロンが混ざるとスタイルシート全体を壊す
  * 危険な文字を落とし 空白を詰めてから使う
+ *
  * @param value - 設定に保存されたフォントスタック
  * @returns 安全なフォントスタック 空になった場合は既定値
  */
@@ -91,6 +92,7 @@ export function sanitizeFontStack(value: unknown): string {
  * 設定セクションから1つのフィールドを読む
  *
  * 設定値は共有の設定ストアから来るため 形は確かめずに名前で引く
+ *
  * @param section - 設定セクションの値
  * @param field - 読むフィールド名
  * @returns 入っていればその値 無ければ undefined
@@ -107,6 +109,7 @@ function readField(section: unknown, field: string): unknown {
  * 設定セクションからフォントスタックを取り出す
  *
  * 未設定 空文字 壊れた値のいずれも既定値へ寄せる
+ *
  * @param section - 設定セクションの値
  * @returns 空にならないフォントスタックの組
  */
@@ -124,6 +127,7 @@ export function readFontSettings(section: unknown): FontSettings {
  *
  * `!important` は ui-layout の presenter が body へ書くインライン値を上回るために要る
  * 配色テーマを切り替えてもフォントは変わらないため light と dark で同じ値を使う
+ *
  * @param settings - 適用するフォントスタック
  * @returns 1行のスタイルシート
  */
@@ -159,6 +163,7 @@ export const GENERIC_FAMILIES: readonly string[] = [
  *
  * 空白や記号を含む名前は引用符が要る 総称フォント名は引用符を付けると別物になるため
  * そのまま返す 危険な文字は先に落とす
+ *
  * @param name - 書体名
  * @returns スタックへ書ける1要素 空になった場合は空文字
  */
@@ -177,6 +182,7 @@ export function quoteFamily(name: unknown): string {
  * フォントスタックを書体名の並びへ分ける
  *
  * 引用符は外し 空要素と重複は落とす 順番はフォールバックの優先順位そのもの
+ *
  * @param value - 保存済みのフォントスタック
  * @returns 書体名の並び
  */
@@ -195,6 +201,7 @@ export function parseFontStack(value: unknown): string[] {
  * 書体名の並びをフォントスタックへ戻す
  *
  * 空の並びはそのまま空文字になる 呼び出し側は既定値へ寄せること
+ *
  * @param families - 書体名の並び
  * @returns スタイルシートへ書けるフォントスタック
  */

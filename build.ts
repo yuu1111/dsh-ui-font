@@ -9,6 +9,7 @@
  */
 
 import { readFile, rm, writeFile } from "node:fs/promises";
+import { build } from "esbuild";
 import manifest from "./package.json";
 
 /**
@@ -58,20 +59,6 @@ const LOADER_TAIL = `
 const EXPORTS = ["apply", "inject"];
 
 /**
- * 失敗したビルドのログを出して中断する
- * @param label - どちらのビルドか
- * @param result - Bun.build の結果
- */
-function assertBuilt(
-	label: string,
-	result: { success: boolean; logs: readonly unknown[] },
-): void {
-	if (result.success) return;
-	for (const log of result.logs) console.error(log);
-	throw new Error(`${label} のビルドに失敗した`);
-}
-
-/**
  * 束ねたバンドルが満たすべき条件を確かめる
  *
  * 実行時に解決するモジュールを許可リストへ限定し プラグイン面の公開を確認する
@@ -102,28 +89,27 @@ function assertClientBundle(body: string): void {
 
 await rm(OUT_DIR, { force: true, recursive: true });
 
-assertBuilt(
-	"host",
-	await Bun.build({
-		entrypoints: ["src/index.ts"],
-		outdir: OUT_DIR,
-		target: "node",
-		format: "esm",
-	}),
-);
+await build({
+	entryPoints: ["src/index.ts"],
+	outdir: OUT_DIR,
+	bundle: true,
+	platform: "node",
+	target: "node22",
+	format: "esm",
+});
 
-assertBuilt(
-	"client",
-	await Bun.build({
-		entrypoints: ["src/client.tsx"],
-		outdir: OUT_DIR,
-		target: "browser",
-		format: "cjs",
-		external: CLIENT_EXTERNALS,
-		// 開発用の jsx ランタイムは shell が持たないため本番用の import に固定する
-		jsx: { development: false },
-	}),
-);
+await build({
+	entryPoints: ["src/client.tsx"],
+	outdir: OUT_DIR,
+	bundle: true,
+	platform: "browser",
+	target: "es2022",
+	format: "cjs",
+	external: CLIENT_EXTERNALS,
+	jsx: "automatic",
+	// 開発用の jsx ランタイムは shell が持たないため本番用の import に固定する
+	jsxDev: false,
+});
 
 const clientPath = `${OUT_DIR}/client.js`;
 const bundle = await readFile(clientPath, "utf8");

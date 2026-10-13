@@ -1,7 +1,10 @@
 {
-	"extends": "@yuu1111/tsconfig/bun.json",
+	"extends": "@yuu1111/tsconfig/base.json",
 	"compilerOptions": {
 		"jsx": "react-jsx",
+		"types": [
+			"node"
+		],
 		"lib": [
 			"ESNext",
 			"DOM"

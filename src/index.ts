@@ -87,6 +87,7 @@ interface SettingsForms {
 	 *
 	 * 自前の面がある場合はスキーマからの自動生成を止める 呼び出しごとに1つだけ登録でき
 	 * 二重に呼ぶと例外になる
+	 *
 	 * @param presentation - 自動生成するかの指定
 	 * @param owner - この面を持つプラグインの実体
 	 * @returns 登録を解除する関数
@@ -105,6 +106,7 @@ interface HostSettingsContext {
 
 	/**
 	 * プラグインの寿命に紐づけて副作用を登録する
+	 *
 	 * @param callback - 登録する副作用 返した関数は破棄時に呼ばれる
 	 * @param label - 診断用の名前
 	 */
@@ -117,6 +119,7 @@ interface HostSettingsContext {
 interface HostContext {
 	/**
 	 * サービスが揃うまで待ってから副作用を登録する
+	 *
 	 * @param names - 待つサービス名
 	 * @param callback - 揃った後に呼ばれる関数
 	 */
@@ -132,6 +135,7 @@ interface HostContext {
 
 	/**
 	 * イベントを購読する
+	 *
 	 * @param event - イベント名
 	 * @param listener - 購読する関数
 	 */
@@ -142,6 +146,7 @@ interface HostContext {
  * 現在のフォント設定を読む
  *
  * 値は index を配るたびに読む ここで固定すると保存された変更が次の描画へ届かない
+ *
  * @param config - 生きた参照を持つプラグインの設定
  * @returns 適用するフォントスタック
  */
@@ -156,6 +161,7 @@ function readSettings(config: Config): FontSettings {
  * フォントのスタイル行を組み立てる
  *
  * クライアント側プラグインが動き出す前の描画でも保存済みのフォントを使う
+ *
  * @param settings - 適用するフォントスタック
  * @returns webserver の index へ積む行
  */
@@ -165,6 +171,7 @@ function fontStyleInjection(settings: FontSettings): StyleInjection {
 
 /**
  * フォント設定を設定文書へ公開し 初回描画用のスタイルを配る
+ *
  * @param ctx - ホスト側 cordis コンテキスト
  * @param config - プラグインの設定
  */

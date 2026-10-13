@@ -73,6 +73,7 @@ interface SettingsForm {
 interface ConfigFormsService {
 	/**
 	 * 1つのプラグイン行の設定を読む 同じ id には同じハンドルが返る
+	 *
 	 * @param namespace - 読むプラグイン行の id
 	 * @returns その行の設定を読み書きするハンドル
 	 */
@@ -161,6 +162,7 @@ interface ClientContext {
 
 	/**
 	 * プラグインの寿命に紐づけて副作用を登録する
+	 *
 	 * @param callback - 登録する副作用 返した関数は破棄時に呼ばれる
 	 * @param label - 診断用の名前
 	 */
@@ -347,6 +349,7 @@ const FALLBACK_FAMILIES: readonly string[] = [
  *
  * 許可が下りた場合だけ実際の一覧を返す 使えない場合と拒否された場合は同梱の一覧へ
  * 落として 選べる書体が無くなる状態を作らない 結果の保持は呼び出し側が行う
+ *
  * @returns 書体の一覧と その出どころ
  */
 async function loadCatalog(): Promise<CatalogState> {
@@ -380,6 +383,7 @@ async function loadCatalog(): Promise<CatalogState> {
  *
  * 選択済みの書体は一覧に無くても外せるように先頭へ混ぜる 検索語が一覧のどれとも
  * 一致しない場合は その名前をそのまま追加できる行を足す
+ *
  * @param catalog - 読み込んだ書体の一覧
  * @param selected - 現在選ばれている書体の並び
  * @param query - 検索語
@@ -439,6 +443,7 @@ function buildOptions(
 
 /**
  * 行の見た目を1枚のスタイルタグとして用意する
+ *
  * @param ctx - クライアント側 cordis コンテキスト
  */
 function installRowStyles(ctx: ClientContext): void {
@@ -465,6 +470,7 @@ function installRowStyles(ctx: ClientContext): void {
  * ホスト側も初回描画のために同じ宣言を差し込むが 属性を持たないため このタグは
  * 後から head の末尾へ積まれ 同じ強さの宣言どうしでは後勝ちになる 値がまだ
  * 届いていない間は手を触れずホスト側の値をそのまま使う
+ *
  * @returns 現在のフォントを反映する関数
  */
 function createStylesheet(): (settings: FontSettings) => void {
@@ -487,6 +493,7 @@ function createStylesheet(): (settings: FontSettings) => void {
 
 /**
  * 並びの中の1つを前後へ動かす
+ *
  * @param families - 現在の並び
  * @param index - 動かす位置
  * @param offset - 動かす向き
@@ -508,7 +515,43 @@ function moveFamily(
 }
 
 /**
+ * 選択した書体の追加または取り除き後の並び
+ *
+ * @param families - 現在の並び
+ * @param option - 選択した候補
+ * @returns 選択を反映した並び
+ */
+function toggleFamily(
+	families: readonly string[],
+	option: FontOption,
+): string[] {
+	if (option.custom) {
+		return [...families, option.key.slice("custom:".length)];
+	}
+	const matches = (family: string) =>
+		family.toLowerCase() === option.label.toLowerCase();
+	return families.some(matches)
+		? families.filter((family) => !matches(family))
+		: [...families, option.label];
+}
+
+/**
+ * 書体一覧を取得できない間の案内
+ *
+ * @param status - 一覧の取得状態
+ * @param t - 行の文言を読む関数
+ * @returns 案内の要素 取得済みなら何も表示しない
+ */
+function renderCatalogNote(status: CatalogState["status"], t: RowProps["t"]) {
+	if (status === "ready") return null;
+	return (
+		<div className={`${STYLE_TAG_MARKER}-note`}>{t(`stack.${status}`)}</div>
+	);
+}
+
+/**
  * 1つのフォントを選ぶ行を作る
+ *
  * @param field - 書き換える設定フィールド
  * @param titleKey - 見出しの辞書キー
  * @param descriptionKey - 説明の辞書キー
@@ -585,23 +628,8 @@ function createFontRow(
 			if (value !== persisted) props.save(value);
 		};
 		const toggle = (option: FontOption) => {
-			if (option.custom) {
-				commit([...families, option.key.slice("custom:".length)]);
-				setQuery("");
-				return;
-			}
-			const exists = families.some(
-				(family) => family.toLowerCase() === option.label.toLowerCase(),
-			);
-			if (exists) {
-				commit(
-					families.filter(
-						(family) => family.toLowerCase() !== option.label.toLowerCase(),
-					),
-				);
-				return;
-			}
-			commit([...families, option.label]);
+			commit(toggleFamily(families, option));
+			if (option.custom) setQuery("");
 		};
 		const options = buildOptions(catalog, families, query, props.t);
 		const preview = formatFontStack(families);
@@ -708,21 +736,7 @@ function createFontRow(
 								setQuery(event.target.value);
 							}}
 						/>
-						{catalog.status === "loading" ? (
-							<div className={`${STYLE_TAG_MARKER}-note`}>
-								{props.t("stack.loading")}
-							</div>
-						) : null}
-						{catalog.status === "denied" ? (
-							<div className={`${STYLE_TAG_MARKER}-note`}>
-								{props.t("stack.denied")}
-							</div>
-						) : null}
-						{catalog.status === "unsupported" ? (
-							<div className={`${STYLE_TAG_MARKER}-note`}>
-								{props.t("stack.unsupported")}
-							</div>
-						) : null}
+						{renderCatalogNote(catalog.status, props.t)}
 						<div className={`${STYLE_TAG_MARKER}-list`}>
 							{options.map((option) => (
 								<button
@@ -783,6 +797,7 @@ export const inject = ["slots", "locale", "configForms"];
 
 /**
  * 保存済みのフォントを当て 設定 → 一般 の行から書き換えられるようにする
+ *
  * @param ctx - クライアント側 cordis コンテキスト
  */
 export function apply(ctx: ClientContext): void {

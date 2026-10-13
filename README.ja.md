@@ -69,10 +69,10 @@ JetBrains Mono は日本語グリフを持たないため、既定の `sans` は
 | `src/index.ts` | ホスト側 2つのフォントスタックを volatile な config として宣言し 配信する index へスタックを差し込む |
 | `src/client.tsx` | ブラウザ側 スタイルシートの適用と設定2行の登録（書体の選択UIを含む） |
 | `src/shared.ts` | 両側で共有する値 namespace 既定値 無害化 スタックの分解と整形 スタイルシートの組み立て |
-| `build.ts` | Bun によるビルド ホスト側は ESM ブラウザ側は CJS にしてローダー形式へ包む |
+| `build.ts` | Node.js 上で tsx から esbuild を実行するビルド ホスト側は ESM ブラウザ側は CJS にしてローダー形式へ包む |
 | `cordis.patch.yml` | `ui-font` 行をプロファイルツリーへ挿入する |
-| `quality.config.ts` `knip.ts` | 品質ゲート `quality-check` が回す engine と opt-in の規則 Knip の入口 |
-| `lib/` | `bun run build` と `prepack` が生成する 追跡しないためローカルと公開 tarball の中にだけ存在する |
+| `quality.json` `knip.ts` | 品質ゲート `quality-check` が回す engine と全ルールのエラー化 警告による失敗 baseline 免除の無効化 Knip の入口 |
+| `lib/` | `pnpm run build` と `prepack` が生成する 追跡しないためローカルと公開 tarball の中にだけ存在する |
 | `tests/host.test.ts` `tests/client.test.ts` `tests/shared.test.ts` | ビルド済み `lib/` に対する契約テスト |
 
 ## 仕組み
@@ -89,19 +89,23 @@ JetBrains Mono は日本語グリフを持たないため、既定の `sans` は
 
 ## 開発
 
+`package.json` の指定に従い、Node.js 22.12.0 以降と pnpm 10.34.6 を使う CI は Node.js 24 で実行する
+
+`package.json` の `pnpm.onlyBuiltDependencies` で esbuild の依存ビルドスクリプトだけを許可する Bun 1.4.2 は配布元の `quality-check` CLI を実行するためだけに必要で、依存のインストール ビルド テストには pnpm と Node.js を使う CI でも品質検査用にだけ Bun を用意する
+
 ```powershell
-bun install
-bun run check          # @yuu1111/tsconfig/bun.json を使った tsc --noEmit
-bun run lint           # biome check .
-bun run format         # biome check --write --unsafe .
-bun run check:quality  # biome tsc knip と code comment document TSDoc の各 checker を回す
-bun run test           # lib/ をビルドしてからテストを実行する
-bun run build          # lib/ を再生成する
+pnpm install --frozen-lockfile
+pnpm run check          # @yuu1111/tsconfig/base.json を使った tsc --noEmit
+pnpm run lint           # biome check .
+pnpm run format         # biome check --write --unsafe .
+pnpm run check:quality  # biome tsc knip と code comment document TSDoc の各 checker を回す
+pnpm run test           # lib/ をビルドしてから Vitest を実行する
+pnpm run build          # lib/ を再生成する
 ```
 
 ブラウザ側が実行時に `require()` してよいのは shell が最初から配る `react` `react/jsx-runtime` `@deepseek-ai/dsh-client-store` `@deepseek-ai/dsh-client-ui-primitives` だけ それ以外の specifier を検出すると `build.ts` がビルドを失敗させる また shell は `react/jsx-dev-runtime` を配らないため JSX は本番ランタイムへ固定する
 
-公開せずに手元のチェックアウトを実プロファイルで試す場合はパスで導入し 変更のたびに `bun run build` を実行する
+公開せずに手元のチェックアウトを実プロファイルで試す場合はパスで導入し 変更のたびに `pnpm run build` を実行する
 
 ```powershell
 dsh plugin --profile web add "link:$((Resolve-Path .\dsh-ui-font).Path)"
@@ -115,8 +119,8 @@ dsh plugin --profile web add "link:$((Resolve-Path .\dsh-ui-font).Path)"
 
 - DSH `0.2.0-rc.2`（`@deepseek-ai/dsh-client-ui-settings` `0.2.0-rc.2`）Windows 11 / Chromium
 - DSH 自身のプラグイン互換判定を通ること `dsh-app-boot` が `@deepseek-ai/dsh-*` の peer 全てへ適用するのと同じ `semver.satisfies(runtime, range, { includePrerelease: true })` で確認
-- `bun test` モジュールID 公開するプラグイン面 `configForms` による行の読み出し 設定面の方針 volatile な値の読み出し index のスタイル行 スタイルシートの更新 行の登録 スタックの分解と整形 選択UIの各経路（導入済み一覧 同梱一覧への退避 アクセス拒否 自由入力の追加）チップの削除と並べ替え
-- `bun run check:quality` Biome 型チェック Knip と code comment document TSDoc の各 checker
+- `pnpm run test` モジュールID 公開するプラグイン面 `configForms` による行の読み出し 設定面の方針 volatile な値の読み出し index のスタイル行 スタイルシートの更新 行の登録 スタックの分解と整形 選択UIの各経路（導入済み一覧 同梱一覧への退避 アクセス拒否 自由入力の追加）チップの削除と並べ替え
+- `pnpm run check:quality` Biome 型チェック Knip と code comment document TSDoc の各 checker
 
 ## ライセンス
 

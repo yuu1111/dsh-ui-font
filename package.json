@@ -43,17 +43,22 @@
 		"registry": "https://registry.npmjs.org/"
 	},
 	"engines": {
-		"node": ">=20"
+		"node": ">=22.12.0"
 	},
-	"packageManager": "bun@1.4.2",
+	"packageManager": "pnpm@10.34.6",
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild"
+		]
+	},
 	"scripts": {
-		"build": "bun build.ts",
-		"prepack": "bun run build",
+		"build": "tsx build.ts",
+		"prepack": "pnpm run build",
 		"check": "tsc -p tsconfig.json",
 		"lint": "biome check .",
 		"format": "biome check --write --unsafe .",
 		"check:quality": "quality-check",
-		"test": "bun run build && bun test"
+		"test": "pnpm run build && vitest run"
 	},
 	"dsh": {
 		"bundle": {
@@ -85,23 +90,22 @@
 		}
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.5.13",
+		"@biomejs/biome": "^2.5.15",
 		"@deepseek-ai/cordis": "^4.0.4",
 		"@deepseek-ai/dsh-client-store": "^0.2.0-rc.2",
 		"@deepseek-ai/dsh-client-ui-primitives": "^0.2.0-rc.2",
 		"@deepseek-ai/schemastery": "^3.18.4",
-		"@types/bun": "^1.4.2",
+		"@types/node": "^24.0.0",
 		"@types/react": "~19.3.0",
-		"@yuu1111/biome-config": "^2.0.1",
-		"@yuu1111/code-style-check": "^0.1.1",
-		"@yuu1111/comment-check": "^2.2.2",
-		"@yuu1111/document-style-check": "^0.3.4",
-		"@yuu1111/knip-config": "^1.0.7",
-		"@yuu1111/quality-check": "^0.9.0",
-		"@yuu1111/tsconfig": "^1.0.7",
-		"@yuu1111/tsdoc-check": "^2.0.3",
-		"knip": "^6.35.1",
+		"@yuu1111/biome-config": "^2.2.2",
+		"@yuu1111/knip-config": "^2.1.0",
+		"@yuu1111/quality-check": "^5.3.1",
+		"@yuu1111/tsconfig": "^1.0.8",
+		"esbuild": "^0.28.2",
+		"knip": "^6.41.0",
 		"react": "^19.3.0",
-		"typescript": "^7.0.2"
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.4"
 	}
 }

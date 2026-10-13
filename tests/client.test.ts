@@ -1,4 +1,7 @@
-import { describe, expect, test } from "bun:test";
+import { readFile } from "node:fs/promises";
+import { setTimeout } from "node:timers/promises";
+import { runInThisContext } from "node:vm";
+import { afterAll, describe, expect, test, vi } from "vitest";
 import manifest from "../package.json";
 import { DEFAULT_MONO } from "../src/shared";
 
@@ -131,21 +134,24 @@ function createFakeDocument() {
 }
 
 // バンドルは読み込み時に自分自身をローダーへ登録する 先にスタブを差しておく
-Object.defineProperty(globalThis, "window", {
-	configurable: true,
-	value: {
-		__ModuleLoader__: {
-			load: (registration: Registration) => {
-				registrations.push(registration);
-			},
+vi.stubGlobal("window", {
+	__ModuleLoader__: {
+		load: (registration: Registration) => {
+			registrations.push(registration);
 		},
 	},
 });
 
-// 生成物を実行時に読む 型解決の対象にすると宣言ファイルが無いため識別子を経由する
-const clientBundleUrl = new URL("../lib/client.js", import.meta.url).href;
+afterAll(() => {
+	vi.unstubAllGlobals();
+});
 
-await import(clientBundleUrl);
+const clientBundleUrl = new URL("../lib/client.js", import.meta.url);
+
+// Vitest のモジュール変換を通すとブラウザ用ローダーの生成物を検証できない
+runInThisContext(await readFile(clientBundleUrl, "utf8"), {
+	filename: clientBundleUrl.pathname,
+});
 
 /**
  * 2つのフックと ref だけを持つ最小の React 代替
@@ -246,7 +252,9 @@ function createRequire(hooks: ReturnType<typeof createHooks>) {
 						return { props, type: "Input" };
 					},
 					useAnchoredPosition: () => ({ left: 0, top: 0 }),
-					useDismissOnOutsidePointer: () => {},
+					useDismissOnOutsidePointer: () => {
+						return undefined;
+					},
 				};
 			default:
 				throw new Error(`スタブしていないモジュール: ${specifier}`);
@@ -302,10 +310,7 @@ function createForm(value: unknown, revision = 1): FakeForm {
  */
 function createClient(value: unknown) {
 	const document = createFakeDocument();
-	Object.defineProperty(globalThis, "document", {
-		configurable: true,
-		value: document,
-	});
+	vi.stubGlobal("document", document);
 	const form = createForm(value);
 	const asked: string[] = [];
 	const rows: { options: RowOptions; component: (props: unknown) => Node }[] =
@@ -328,13 +333,17 @@ function createClient(value: unknown) {
 			},
 			register(options: RowOptions, component: (props: unknown) => Node) {
 				rows.push({ component, options });
-				return () => {};
+				return () => {
+					return undefined;
+				};
 			},
 		},
 		locale: {
 			register(...args: unknown[]) {
 				dictionaries.push(args);
-				return () => {};
+				return () => {
+					return undefined;
+				};
 			},
 		},
 		effect(callback: () => (() => void) | undefined, label: string) {
@@ -342,7 +351,11 @@ function createClient(value: unknown) {
 			const disposer = callback();
 			if (disposer !== undefined) disposers.push(disposer);
 		},
-		logger: { warn: () => {} },
+		logger: {
+			warn: () => {
+				return undefined;
+			},
+		},
 	};
 	const loaded = loadPluginFace();
 	loaded.face.apply(ctx);
@@ -509,7 +522,11 @@ describe("apply", () => {
 
 	test("行の保存は設定へ書き戻す", () => {
 		const { form, rows } = createClient({ sans: "A", mono: "B" });
-		const injected = rows[1]?.options.inject({ sync: () => {} });
+		const injected = rows[1]?.options.inject({
+			sync: () => {
+				return undefined;
+			},
+		});
 		injected?.save("Saved Mono");
 		expect(form.written).toEqual([["mono", "Saved Mono"]]);
 	});
@@ -659,7 +676,7 @@ function createRowHarness(value: string) {
 		)();
 		// 開いた状態で描き直すと読み込みが始まる
 		tree = render();
-		await Bun.sleep(0);
+		await setTimeout(0);
 		return render();
 	};
 	return { openPicker, render, saved };
@@ -669,10 +686,7 @@ function createRowHarness(value: string) {
  * 端末の書体を列挙する API を差し替える
  */
 function stubLocalFonts(query: unknown): void {
-	Object.defineProperty(globalThis, "queryLocalFonts", {
-		configurable: true,
-		value: query,
-	});
+	vi.stubGlobal("queryLocalFonts", query);
 }
 
 describe("設定行", () => {
@@ -730,6 +744,31 @@ describe("設定行", () => {
 		render();
 	});
 
+	test("一覧の読み込み中だけ案内を表示し取得後は消す", async () => {
+		const pending = Promise.withResolvers<{ family: string }[]>();
+		stubLocalFonts(() => pending.promise);
+		const { openPicker, render } = createRowHarness("Consolas");
+		const loading = await openPicker();
+		expect(
+			findAllByClass(loading, "dsh-ui-font-note").map(collectText),
+		).toEqual(["stack.loading"]);
+		pending.resolve([{ family: "Consolas" }]);
+		await setTimeout(0);
+		expect(findAllByClass(render(), "dsh-ui-font-note")).toEqual([]);
+	});
+
+	test("書体の選択解除は大文字と小文字を区別しない", async () => {
+		stubLocalFonts(async () => [{ family: "CONSOLAS" }]);
+		const { openPicker, saved } = createRowHarness("Consolas, monospace");
+		const tree = await openPicker();
+		const option = findAllByClass(tree, "dsh-ui-font-option").find(
+			(current) => collectText(current) === "CONSOLAS",
+		);
+		expect(option?.props["aria-selected"]).toBe(true);
+		requireHandler<() => void>(option as Node, "onClick")();
+		expect(saved).toEqual(["monospace"]);
+	});
+
 	test("選択済みの書体をもう一度押すと外れる", async () => {
 		stubLocalFonts(async () => [
 			{ family: "Consolas" },
@@ -778,6 +817,7 @@ describe("設定行", () => {
 		expect(collectText(custom as Node)).toBe("stack.custom:My Face; Extra");
 		requireHandler<() => void>(custom as Node, "onClick")();
 		expect(saved).toEqual(['Consolas, sans-serif, "My Face Extra"']);
+		expect(requireNode(render(), "Input").props.value).toBe("");
 	});
 
 	test("書体を外すと残りだけを保存する", () => {

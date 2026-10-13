@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test, vi } from "vitest";
 import { DEFAULT_MONO, DEFAULT_SANS } from "../src/shared";
 
 /**
@@ -85,13 +85,14 @@ function createHost(config: ResolvedConfig) {
 		configured,
 		effects,
 		host,
-		/** 設定サービスが現れた状態にして副作用を走らせる */
 		attachSettings() {
 			callback?.({
 				settings: {
 					configure: (presentation, owner) => {
 						configured.push({ owner, presentation });
-						return () => {};
+						return () => {
+							return undefined;
+						};
 					},
 				},
 				effect: (register, label) => {
@@ -100,7 +101,6 @@ function createHost(config: ResolvedConfig) {
 				},
 			});
 		},
-		/** index を配る時に積まれる行を集める */
 		emit() {
 			const table: StyleRow[] = [];
 			for (const listener of listeners) listener(table);
@@ -110,12 +110,12 @@ function createHost(config: ResolvedConfig) {
 }
 
 const moduleUrl = new URL("../lib/index.js", import.meta.url).href;
-const hostModule = (await import(moduleUrl)) as {
+const hostModule = await vi.importActual<{
 	apply(ctx: unknown, config: ResolvedConfig): void;
 	Config: ((value: unknown) => ResolvedConfig) & {
 		toJSON(): unknown;
 	};
-};
+}>(moduleUrl);
 
 describe("設定スキーマ", () => {
 	test("未設定なら同梱のフォントスタックを使う", () => {
